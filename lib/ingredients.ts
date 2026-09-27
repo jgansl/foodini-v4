@@ -1,0 +1,128 @@
+import { formatQuantity, matchUnit, unitLabel } from "./units";
+
+export type ParsedIngredient = {
+  raw: string;
+  quantity: number | null;
+  unit: string | null;
+  /** Lowercased ingredient name; null when the line could not be read (kept as raw text). */
+  name: string | null;
+  note: string | null;
+};
+
+const UNICODE_FRACTIONS: Record<string, string> = {
+  "½": "1/2", "⅓": "1/3", "⅔": "2/3", "¼": "1/4", "¾": "3/4", "⅕": "1/5", "⅖": "2/5", "⅗": "3/5",
+  "⅘": "4/5", "⅙": "1/6", "⅚": "5/6", "⅛": "1/8", "⅜": "3/8", "⅝": "5/8", "⅞": "7/8",
+};
+const FRACTION_CHARS = new RegExp(`(\\d)?([${Object.keys(UNICODE_FRACTIONS).join("")}])`, "g");
+
+const NUMBER = String.raw`\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+`;
+// A number, optionally a range ("2-3", "2 to 3"), followed by whitespace, a letter or the end.
+const QUANTITY = new RegExp(String.raw`^(${NUMBER})(?:\s*(?:-|–|—|to)\s*(${NUMBER}))?(?=\s|[a-z]|$)\s*`, "i");
+const TO_TASTE = /[,\s]*\bto taste\b\.?$/i;
+const SIZE_WORDS = new Set(["small", "medium", "large", "extra-large", "big"]);
+
+function expandUnicodeFractions(s: string): string {
+  return s
+    .replace(/⁄/g, "/")
+    .replace(FRACTION_CHARS, (_, digit: string | undefined, glyph: string) => `${digit ? `${digit} ` : ""}${UNICODE_FRACTIONS[glyph]}`);
+}
+
+function parseNumber(s: string): number {
+  return s
+    .trim()
+    .split(/\s+/)
+    .reduce((total, part) => {
+      if (!part.includes("/")) return total + Number(part);
+      const [numerator, denominator] = part.split("/").map(Number);
+      return total + numerator / denominator;
+    }, 0);
+}
+
+export function parseIngredient(raw: string): ParsedIngredient {
+  const text = raw.replace(/\s+/g, " ").trim();
+  const unread: ParsedIngredient = { raw: text, quantity: null, unit: null, name: null, note: null };
+  if (!text || text.endsWith(":")) return unread;
+
+  const parenNotes: string[] = [];
+  let rest = expandUnicodeFractions(text)
+    .replace(/\(([^)]*)\)/g, (_, inner: string) => {
+      if (inner.trim()) parenNotes.push(inner.trim());
+      return " ";
+    })
+    .replace(/\s+/g, " ")
+    .trim();
+
+  let quantity: number | null = null;
+  const q = QUANTITY.exec(rest);
+  if (q) {
+    // For a range, buy for the upper bound.
+    const value = parseNumber(q[2] ?? q[1]);
+    if (Number.isFinite(value) && value > 0) quantity = value;
+    rest = rest.slice(q[0].length);
+  } else if (/^(a|an)\s/i.test(rest)) {
+    quantity = 1;
+    rest = rest.replace(/^(a|an)\s+/i, "");
+  }
+
+  let unit: string | null = null;
+  if (quantity !== null) {
+    const tokens = rest.split(" ");
+    const match = matchUnit(tokens);
+    if (match) {
+      unit = match.unit;
+      rest = tokens.slice(match.consumed).join(" ");
+    }
+  }
+  rest = rest.replace(/^of\s+/i, "");
+
+  const trailingNotes: string[] = [];
+  if (TO_TASTE.test(rest)) {
+    rest = rest.replace(TO_TASTE, "");
+    trailingNotes.push("to taste");
+  }
+
+  let commaNote: string | null = null;
+  const comma = rest.indexOf(",");
+  if (comma >= 0) {
+    commaNote = rest.slice(comma + 1).trim() || null;
+    rest = rest.slice(0, comma);
+  }
+
+  const words = rest.trim().split(" ").filter(Boolean);
+  let sizeNote: string | null = null;
+  if (words.length > 1 && SIZE_WORDS.has(words[0].toLowerCase())) sizeNote = words.shift()!.toLowerCase();
+
+  const name = words.join(" ").toLowerCase() || null;
+  const notes = [sizeNote, ...parenNotes, commaNote, ...trailingNotes].filter((n): n is string => Boolean(n));
+  return { raw: text, quantity, unit, name, note: notes.length ? notes.join(", ") : null };
+}
+
+/** Renders an ingredient scaled by `factor`. At factor 1, or when there is no quantity, shows the original line. */
+export function formatIngredient(p: ParsedIngredient, factor = 1): string {
+  if (factor === 1 || p.quantity === null) return p.raw;
+  const scaled = p.quantity * factor;
+  const main = [formatQuantity(scaled), p.unit ? unitLabel(p.unit, scaled) : null, p.name].filter(Boolean).join(" ");
+  return p.note ? `${main} (${p.note})` : main;
+}
+
+function singularize(word: string): string {
+  if (word.length <= 3) return word;
+  if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
+  if (/(ches|shes|xes|oes|sses)$/.test(word)) return word.slice(0, -2);
+  if (word.endsWith("s") && !/(ss|us|is)$/.test(word)) return word.slice(0, -1);
+  return word;
+}
+
+/** Key used to match items: lowercase, punctuation removed, whitespace collapsed, last word singular. */
+export function normalizeItemName(name: string): string {
+  const words = name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s'-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  if (words.length === 0) return "";
+  words[words.length - 1] = singularize(words[words.length - 1]);
+  return words.join(" ");
+}
