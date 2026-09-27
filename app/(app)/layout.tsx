@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/app-nav";
+import { TimezoneCookie } from "@/components/timezone-cookie";
 import { requireUser } from "@/server/auth";
 import { signOut } from "./actions";
 
@@ -7,6 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   return (
     <div className="flex min-h-full flex-col">
+      <TimezoneCookie />
       <header className="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800">
         <Link href="/recipes" className="text-lg font-semibold tracking-tight">
           Foodini
