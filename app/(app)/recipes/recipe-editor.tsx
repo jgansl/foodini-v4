@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { ui } from "@/components/ui";
 import { parseIngredient } from "@/lib/ingredients";
+import { checkPhoto } from "@/lib/photo-rules";
 import { draftToFormValues, type RecipeFormValues } from "@/lib/recipe-input";
 import { formatQuantity, unitLabel } from "@/lib/units";
 import { importRecipe, type RecipeFormState } from "./actions";
@@ -90,8 +91,11 @@ function RecipeFields({ action, initial, hasPhoto, submitLabel }: Omit<EditorPro
   // After a failed save the action returns what was submitted; React resets uncontrolled fields
   // to these defaults, so nothing typed is lost.
   const values = state?.values ?? initial;
-  const errors = state?.fieldErrors ?? {};
   const [ingredients, setIngredients] = useState(initial.ingredients);
+  // Checked in the browser too: files over the Server Action body limit never reach saveRecipe,
+  // and the request would fail without returning the form's values.
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const errors = { ...(state?.fieldErrors ?? {}), ...(photoError ? { photo: photoError } : {}) };
 
   const describedBy = (name: keyof typeof errors, hint?: string) =>
     [errors[name] ? `${name}-error` : null, hint ?? null].filter(Boolean).join(" ") || undefined;
@@ -103,7 +107,14 @@ function RecipeFields({ action, initial, hasPhoto, submitLabel }: Omit<EditorPro
     ) : null;
 
   return (
-    <form action={formAction} className="space-y-5" noValidate>
+    <form
+      action={formAction}
+      className="space-y-5"
+      noValidate
+      onSubmit={(e) => {
+        if (photoError) e.preventDefault();
+      }}
+    >
       {state?.message && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
           {state.message}
@@ -194,9 +205,18 @@ function RecipeFields({ action, initial, hasPhoto, submitLabel }: Omit<EditorPro
         <label htmlFor="photo" className={ui.label}>
           Photo
         </label>
-        <input id="photo" name="photo" type="file" accept="image/jpeg,image/png,image/webp" aria-invalid={!!errors.photo} aria-describedby={describedBy("photo", "photo-hint")} className="mt-1 block text-sm" />
+        <input
+          id="photo"
+          name="photo"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={(e) => {
+            const result = checkPhoto(e.target.files?.[0] ?? null);
+            setPhotoError(result.ok ? null : result.message);
+          }}
+          aria-invalid={!!errors.photo} aria-describedby={describedBy("photo", "photo-hint")} className="mt-1 block text-sm" />
         <p id="photo-hint" className={ui.hint}>
-          JPEG, PNG or WebP, up to 5 MB.{errors.photo ? " Choose the photo again after fixing other fields." : ""}
+          JPEG, PNG or WebP, up to 5 MB.{state?.fieldErrors.photo ? " Choose the photo again after fixing other fields." : ""}
         </p>
         {fieldError("photo")}
         {hasPhoto && (

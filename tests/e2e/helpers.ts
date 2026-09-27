@@ -7,14 +7,14 @@ const admin = () =>
   });
 
 /** Creates a throwaway user and signs the page in through the real /auth/confirm route. */
-export async function signInAsNewUser(page: Page): Promise<{ id: string }> {
-  const email = `e2e-${crypto.randomUUID()}@example.test`;
+export async function signInAsNewUser(page: Page, domain = "example.test"): Promise<{ id: string }> {
+  const email = `e2e-${crypto.randomUUID()}@${domain}`;
   const { data: created, error: createError } = await admin().auth.admin.createUser({ email, email_confirm: true });
   if (createError) throw createError;
   const { data, error } = await admin().auth.admin.generateLink({ type: "magiclink", email });
   if (error) throw error;
   await page.goto(`/auth/confirm?token_hash=${data.properties.hashed_token}&type=email&next=/recipes`);
-  await page.waitForURL("**/recipes");
+  if (domain === "example.test") await page.waitForURL("**/recipes");
   return { id: created.user.id };
 }
 

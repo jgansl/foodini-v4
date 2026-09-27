@@ -9,6 +9,11 @@ describe("isAllowedEmail", () => {
   it("rejects addresses not on the list", () => {
     expect(isAllowedEmail("stranger@example.com", "me@example.com")).toBe(false);
   });
+  it("allows a whole domain with an @domain entry", () => {
+    expect(isAllowedEmail("e2e-123@example.test", "me@example.com, @example.test")).toBe(true);
+    expect(isAllowedEmail("someone@notexample.test", "@example.test")).toBe(false);
+    expect(isAllowedEmail("someone@example.test.evil.com", "@example.test")).toBe(false);
+  });
   it("rejects everyone when the list is missing or empty", () => {
     expect(isAllowedEmail("me@example.com", undefined)).toBe(false);
     expect(isAllowedEmail("me@example.com", " , ")).toBe(false);

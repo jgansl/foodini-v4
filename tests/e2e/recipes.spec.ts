@@ -25,6 +25,17 @@ test("an invalid sign-in link explains itself", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: "invalid or has expired" })).toBeVisible();
 });
 
+test("a session for an address outside ALLOWED_EMAILS is not let in", async ({ page }) => {
+  const { id } = await signInAsNewUser(page, "outsider.test");
+  try {
+    await expect(page).toHaveURL(/\/login/);
+    await page.goto("/recipes");
+    await expect(page).toHaveURL(/\/login/);
+  } finally {
+    await deleteUser(id);
+  }
+});
+
 test.describe("signed in", () => {
   let userId: string;
 
@@ -80,6 +91,20 @@ test.describe("signed in", () => {
     await expect(page.getByText("Servings is required")).toBeVisible();
     await expect(page.getByLabel("Ingredients", { exact: true })).toHaveValue("3 eggs");
     await expect(page.getByLabel("Steps", { exact: true })).toHaveValue("Scramble.");
+  });
+
+  test("a photo that is too large is refused without losing the form", async ({ page }) => {
+    await page.goto("/recipes/new");
+    await page.getByLabel("Title", { exact: true }).fill("Big photo stew");
+    await page.getByLabel("Servings", { exact: true }).fill("2");
+    await page.getByLabel("Ingredients", { exact: true }).fill("1 onion");
+    await page.getByLabel("Photo", { exact: true }).setInputFiles({ name: "big.jpg", mimeType: "image/jpeg", buffer: Buffer.alloc(8 * 1024 * 1024) });
+    await expect(page.getByText("Photos must be 5 MB or smaller.")).toBeVisible();
+    await page.getByRole("button", { name: "Save recipe" }).click();
+    await expect(page).toHaveURL(/\/recipes\/new$/);
+    await expect(page.getByText("Photos must be 5 MB or smaller.")).toBeVisible();
+    await expect(page.getByLabel("Title", { exact: true })).toHaveValue("Big photo stew");
+    await expect(page.getByLabel("Ingredients", { exact: true })).toHaveValue("1 onion");
   });
 
   test("another user's recipe is a 404", async ({ page, browser }) => {

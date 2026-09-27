@@ -21,6 +21,7 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 120_000,
     // Lets the import test fetch its fixture from a local server; ignored in production.
-    env: { ...(process.env as Record<string, string>), IMPORT_ALLOW_PRIVATE: "1" },
+    // Test users are created on @example.test; the outsider test uses another domain.
+    env: { ...(process.env as Record<string, string>), IMPORT_ALLOW_PRIVATE: "1", ALLOWED_EMAILS: "@example.test" },
   },
 });

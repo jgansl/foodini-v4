@@ -12,6 +12,9 @@ describe("safeNext", () => {
       expect(safeNext(next)).toBe("/recipes");
     },
   );
+  it.each(["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/%09/evil.example", "/ok\u0000"])("falls back for control characters in %j", (next) => {
+    expect(safeNext(next)).toBe("/recipes");
+  });
   it("uses a custom fallback", () => {
     expect(safeNext(null, "/plan")).toBe("/plan");
   });
