@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Status:** Complete. All 12 tasks were implemented on `phase-1-recipes` and the final review's fixes are in [jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1). Deviations are recorded in `docs/DECISIONS.md`, and deferred findings in `docs/ROADMAP.md`.
+
 **Goal:** A signed-in user can build a recipe box: create, edit, delete, search and tag recipes; import them from a URL; attach a photo; and scale servings. Every ingredient line is parsed into quantity, unit and item.
 
 **Architecture:** Next.js 16 App Router on the existing scaffold. Server Components read Postgres through Drizzle, and Server Actions write through Drizzle after Zod validation. Supabase provides Postgres, magic-link auth (cookies through `@supabase/ssr`) and photo storage. All domain logic (units, the ingredient parser, sections, form validation, JSON-LD import, safe page fetching) lives in pure modules in `lib/` with Vitest unit tests. Query helpers in `db/queries/` get integration tests against a local Supabase, and Playwright covers the main flows end to end.
@@ -117,7 +119,7 @@ vitest.config.ts, drizzle.config.ts, playwright.config.ts, .env.example
   - `unitLabel(unit: string, quantity: number): string`
   - `formatQuantity(n: number): string`
 
-- [ ] **Step 1: Install Vitest and add scripts**
+- [x] **Step 1: Install Vitest and add scripts**
 
 Run: `pnpm add -D vitest`
 
@@ -134,7 +136,7 @@ In `package.json`, set `"scripts"` to:
 }
 ```
 
-- [ ] **Step 2: Create the Vitest config and the server-only stub**
+- [x] **Step 2: Create the Vitest config and the server-only stub**
 
 `vitest.config.ts`:
 
@@ -169,7 +171,7 @@ export default defineConfig({
 export {};
 ```
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 `lib/units.test.ts`:
 
@@ -244,12 +246,12 @@ describe("formatQuantity", () => {
 });
 ```
 
-- [ ] **Step 4: Run the tests to verify they fail**
+- [x] **Step 4: Run the tests to verify they fail**
 
 Run: `pnpm test lib/units.test.ts`
 Expected: FAIL, "Failed to resolve import ./units".
 
-- [ ] **Step 5: Implement `lib/units.ts`**
+- [x] **Step 5: Implement `lib/units.ts`**
 
 ```ts
 export type UnitKind = "count" | "volume" | "weight";
@@ -344,12 +346,12 @@ export function formatQuantity(n: number): string {
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `pnpm test lib/units.test.ts`
 Expected: PASS (all tests).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml vitest.config.ts tests/stubs/server-only.ts lib/units.ts lib/units.test.ts
@@ -371,7 +373,7 @@ git commit -m "Add Vitest and the units module" -m "Co-Authored-By: Claude Opus 
   - `formatIngredient(p: ParsedIngredient, factor?: number): string`
   - `normalizeItemName(name: string): string`, the item-matching key
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `lib/ingredients.test.ts`:
 
@@ -455,12 +457,12 @@ describe("normalizeItemName", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test lib/ingredients.test.ts`
 Expected: FAIL, "Failed to resolve import ./ingredients".
 
-- [ ] **Step 3: Implement `lib/ingredients.ts`**
+- [x] **Step 3: Implement `lib/ingredients.ts`**
 
 ```ts
 import { formatQuantity, matchUnit, unitLabel } from "./units";
@@ -593,12 +595,12 @@ export function normalizeItemName(name: string): string {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test lib/ingredients.test.ts`
 Expected: PASS. If a single case fails, fix the parser, not the expectation; each expectation is a behavior promised in spec §3.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/ingredients.ts lib/ingredients.test.ts
@@ -619,7 +621,7 @@ git commit -m "Add ingredient line parser" -m "Co-Authored-By: Claude Opus 5.5 <
   - `type Section`
   - `sectionFor(name: string): Section`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `lib/sections.test.ts`:
 
@@ -654,12 +656,12 @@ describe("sectionFor", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test lib/sections.test.ts`
 Expected: FAIL, "Failed to resolve import ./sections".
 
-- [ ] **Step 3: Implement `lib/sections.ts`**
+- [x] **Step 3: Implement `lib/sections.ts`**
 
 ```ts
 import { normalizeItemName } from "./ingredients";
@@ -728,12 +730,12 @@ export function sectionFor(name: string): Section {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test lib/sections.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/sections.ts lib/sections.test.ts
@@ -760,11 +762,11 @@ git commit -m "Add default store sections for items" -m "Co-Authored-By: Claude 
   - `recipeToFormValues(r: { title: string; servings: number; ingredients: { rawText: string }[]; steps: string[]; tags: string[]; sourceUrl: string | null; notes: string | null }): RecipeFormValues`
   - `PHOTO_MAX_BYTES`, `PHOTO_TYPES: Record<string, string>` (MIME type → extension), `checkPhoto(file: { size: number; type: string } | null): { ok: true } | { ok: false; message: string }`
 
-- [ ] **Step 1: Install Zod**
+- [x] **Step 1: Install Zod**
 
 Run: `pnpm add zod`
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `lib/recipe-input.test.ts`:
 
@@ -891,12 +893,12 @@ describe("checkPhoto", () => {
 });
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `pnpm test lib/recipe-input.test.ts lib/photo-rules.test.ts`
 Expected: FAIL, the modules can't be resolved.
 
-- [ ] **Step 4: Implement `lib/recipe-input.ts`**
+- [x] **Step 4: Implement `lib/recipe-input.ts`**
 
 ```ts
 import { z } from "zod";
@@ -1047,7 +1049,7 @@ export function recipeToFormValues(r: {
 }
 ```
 
-- [ ] **Step 5: Implement `lib/photo-rules.ts`**
+- [x] **Step 5: Implement `lib/photo-rules.ts`**
 
 ```ts
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -1067,12 +1069,12 @@ export function checkPhoto(file: { size: number; type: string } | null): { ok: t
 }
 ```
 
-- [ ] **Step 6: Run the tests to verify they pass**
+- [x] **Step 6: Run the tests to verify they pass**
 
 Run: `pnpm test lib/recipe-input.test.ts lib/photo-rules.test.ts`
 Expected: PASS. If the `servings: "abc"` case reports a different message, check Zod 4's `z.coerce.number({ error })` behavior for NaN and adjust the schema (not the test) so the message is `Servings must be a number`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json pnpm-lock.yaml lib/recipe-input.ts lib/recipe-input.test.ts lib/photo-rules.ts lib/photo-rules.test.ts
@@ -1092,7 +1094,7 @@ git commit -m "Add recipe form validation and photo rules" -m "Co-Authored-By: C
   - `extractRecipe(html: string, sourceUrl: string): RecipeDraft | null`, which returns null when the page has no `Recipe` node
   - `extractTitle(html: string): string | null`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `lib/import.test.ts`:
 
@@ -1204,12 +1206,12 @@ describe("extractTitle", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test lib/import.test.ts`
 Expected: FAIL, "Failed to resolve import ./import".
 
-- [ ] **Step 3: Implement `lib/import.ts`**
+- [x] **Step 3: Implement `lib/import.ts`**
 
 ```ts
 export type RecipeDraft = {
@@ -1343,12 +1345,12 @@ function clean(s: string): string {
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test lib/import.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/import.ts lib/import.test.ts
@@ -1371,7 +1373,7 @@ git commit -m "Extract recipes from schema.org JSON-LD" -m "Co-Authored-By: Clau
 
 This module uses `node:dns` and `node:net`, but it has no Next.js or database imports and its effects can be injected, so it lives in `lib/` with unit tests.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `lib/fetch-page.test.ts`:
 
@@ -1482,12 +1484,12 @@ describe("fetchPage", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test lib/fetch-page.test.ts`
 Expected: FAIL, "Failed to resolve import ./fetch-page".
 
-- [ ] **Step 3: Implement `lib/fetch-page.ts`**
+- [x] **Step 3: Implement `lib/fetch-page.ts`**
 
 ```ts
 import { lookup as dnsLookup } from "node:dns/promises";
@@ -1649,12 +1651,12 @@ export async function fetchPage(url: string, options: FetchPageOptions = {}): Pr
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `pnpm test lib/fetch-page.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/fetch-page.ts lib/fetch-page.test.ts
@@ -1677,7 +1679,7 @@ git commit -m "Add SSRF-safe page fetcher for recipe import" -m "Co-Authored-By:
 
 **Prerequisite:** Docker Desktop is running (`docker info` succeeds).
 
-- [ ] **Step 1: Install dependencies and allow the Supabase CLI build script**
+- [x] **Step 1: Install dependencies and allow the Supabase CLI build script**
 
 Add to `pnpm-workspace.yaml` under `allowBuilds:` (the Supabase npm package downloads its binary in a postinstall script):
 
@@ -1697,7 +1699,7 @@ pnpm add -D drizzle-kit supabase
 
 If pnpm reports an ignored build script for `esbuild`, add `esbuild: true` under `allowBuilds` and run `pnpm install` again.
 
-- [ ] **Step 2: Initialize and configure local Supabase**
+- [x] **Step 2: Initialize and configure local Supabase**
 
 Run: `pnpm exec supabase init` (answer "N" to the editor-settings prompts).
 
@@ -1732,7 +1734,7 @@ Create `supabase/templates/magic-link.html`. `{{ .RedirectTo }}` is the `emailRe
 Run: `pnpm exec supabase start`
 Expected: the command prints the API URL (`http://127.0.0.1:54321`), the DB URL (`postgresql://postgres:postgres@127.0.0.1:54322/postgres`), Mailpit (`http://127.0.0.1:54324`), and the publishable and secret keys. `pnpm exec supabase status` prints them again at any time.
 
-- [ ] **Step 3: Environment files**
+- [x] **Step 3: Environment files**
 
 In `.gitignore`, directly under the existing `.env*` line, add:
 
@@ -1757,7 +1759,7 @@ ALLOWED_EMAILS=you@example.com
 
 Copy it to `.env.local` and fill in the two keys from `pnpm exec supabase status`, plus your own email in `ALLOWED_EMAILS`. `.env.local` is gitignored.
 
-- [ ] **Step 4: Write the Drizzle schema and client**
+- [x] **Step 4: Write the Drizzle schema and client**
 
 `db/schema.ts`:
 
@@ -1873,7 +1875,7 @@ Add these to the `package.json` scripts:
 "test:int": "vitest run --project integration"
 ```
 
-- [ ] **Step 5: Generate the table migration and write the RLS migration**
+- [x] **Step 5: Generate the table migration and write the RLS migration**
 
 Run: `pnpm db:generate --name=init`
 Expected: `db/migrations/0000_init.sql` containing `CREATE TYPE "public"."unit_kind"`, three `CREATE TABLE` statements, the unique index and the check constraint.
@@ -1933,7 +1935,7 @@ CREATE POLICY "recipe_photos_delete" ON storage.objects FOR DELETE TO authentica
 Run: `pnpm db:migrate`
 Expected: both migrations apply without errors. Note: `pnpm exec supabase db reset` wipes this schema, so run `pnpm db:migrate` again after any reset.
 
-- [ ] **Step 6: Add the integration test project, setup and helpers**
+- [x] **Step 6: Add the integration test project, setup and helpers**
 
 In `vitest.config.ts`, add a second entry to `test.projects`:
 
@@ -1996,7 +1998,7 @@ export async function signedInClient(user: TestUser): Promise<SupabaseClient> {
 }
 ```
 
-- [ ] **Step 7: Write the RLS test**
+- [x] **Step 7: Write the RLS test**
 
 `tests/integration/rls.test.ts`:
 
@@ -2071,12 +2073,12 @@ describe("row-level security", () => {
 });
 ```
 
-- [ ] **Step 8: Run the integration tests**
+- [x] **Step 8: Run the integration tests**
 
 Run: `pnpm test:int`
 Expected: PASS (7 tests). If "hides another user's recipe" fails with a permission error instead of an empty result, the `GRANT` statement didn't apply: re-check the migration output. If the storage test fails because policies can't be created on `storage.objects`, check the `pnpm db:migrate` output for an "must be owner of table objects" error and report it; don't loosen the policies.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add pnpm-workspace.yaml package.json pnpm-lock.yaml .gitignore .env.example supabase drizzle.config.ts db vitest.config.ts tests/integration
@@ -2100,7 +2102,7 @@ git commit -m "Add Supabase, Drizzle schema, migrations and row-level security" 
   - `type SessionUser = { id: string; email: string | null }`, `getUser(): Promise<SessionUser | null>` and `requireUser(next?: string): Promise<SessionUser>` from `@/server/auth`
   - `ui` class-string map from `@/components/ui`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `lib/safe-next.test.ts`:
 
@@ -2146,12 +2148,12 @@ describe("isAllowedEmail", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test lib/safe-next.test.ts lib/allowed-email.test.ts`
 Expected: FAIL, the modules can't be resolved.
 
-- [ ] **Step 3: Implement the helpers**
+- [x] **Step 3: Implement the helpers**
 
 `lib/safe-next.ts`:
 
@@ -2185,7 +2187,7 @@ export function isAllowedEmail(email: string, allowList: string | undefined): bo
 Run: `pnpm test lib/safe-next.test.ts lib/allowed-email.test.ts`
 Expected: PASS.
 
-- [ ] **Step 4: Supabase server client, session refresh and auth helpers**
+- [x] **Step 4: Supabase server client, session refresh and auth helpers**
 
 `server/supabase.ts`:
 
@@ -2294,7 +2296,7 @@ export const config = {
 };
 ```
 
-- [ ] **Step 5: Login page, magic-link action and confirmation route**
+- [x] **Step 5: Login page, magic-link action and confirmation route**
 
 `components/ui.ts`:
 
@@ -2464,7 +2466,7 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-- [ ] **Step 6: The signed-in app shell and root pages**
+- [x] **Step 6: The signed-in app shell and root pages**
 
 `app/(app)/actions.ts`:
 
@@ -2591,7 +2593,7 @@ export default function RecipesPage() {
 }
 ```
 
-- [ ] **Step 7: Verify the sign-in flow by hand**
+- [x] **Step 7: Verify the sign-in flow by hand**
 
 1. Run: `pnpm dev`
 2. Run `curl -sI http://localhost:3000/recipes | grep -i location`. Expected: `location: http://localhost:3000/login?next=%2Frecipes`.
@@ -2604,7 +2606,7 @@ export default function RecipesPage() {
 Run: `pnpm lint && pnpm test`
 Expected: no lint errors; all unit tests pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add lib/safe-next.ts lib/safe-next.test.ts lib/allowed-email.ts lib/allowed-email.test.ts server proxy.ts app components
@@ -2638,7 +2640,7 @@ git commit -m "Add magic-link sign-in, session proxy and app shell" -m "Co-Autho
   - `updateRecipe(userId: string, id: string, input: RecipeInput, imagePath: string | null): Promise<boolean>`
   - `deleteRecipe(userId: string, id: string): Promise<{ imagePath: string | null } | null>`
 
-- [ ] **Step 1: Write the failing integration tests**
+- [x] **Step 1: Write the failing integration tests**
 
 `tests/integration/recipes.test.ts`:
 
@@ -2774,12 +2776,12 @@ describe("recipe queries", () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `pnpm test:int tests/integration/recipes.test.ts`
 Expected: FAIL, "Failed to resolve import @/db/queries/recipes".
 
-- [ ] **Step 3: Implement `db/queries/items.ts`**
+- [x] **Step 3: Implement `db/queries/items.ts`**
 
 ```ts
 import "server-only";
@@ -2828,7 +2830,7 @@ export async function resolveItems(
 }
 ```
 
-- [ ] **Step 4: Implement `db/queries/recipes.ts`**
+- [x] **Step 4: Implement `db/queries/recipes.ts`**
 
 ```ts
 import "server-only";
@@ -2997,12 +2999,12 @@ export async function deleteRecipe(userId: string, id: string): Promise<{ imageP
 }
 ```
 
-- [ ] **Step 5: Run the tests to verify they pass**
+- [x] **Step 5: Run the tests to verify they pass**
 
 Run: `pnpm test:int`
 Expected: PASS (the RLS tests and all recipe query tests). The "orders newest first" assertion depends on `updatedAt` differing between two inserts made milliseconds apart. If it's flaky, don't weaken it: set `updatedAt: new Date()` explicitly in `createRecipe`'s values so each insert gets its own timestamp.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add db/queries tests/integration/recipes.test.ts
@@ -3034,7 +3036,7 @@ git commit -m "Add recipe and item query helpers" -m "Co-Authored-By: Claude Opu
   - `importRecipe(url: string): Promise<{ ok: true; draft: RecipeDraft } | { ok: false; message: string; draft?: RecipeDraft }>`
   - `RecipeEditor` client component with props `{ action, initial: RecipeFormValues, hasPhoto?: boolean, showImport?: boolean, submitLabel: string }`
 
-- [ ] **Step 1: Raise the Server Action body limit for 5 MB photos**
+- [x] **Step 1: Raise the Server Action body limit for 5 MB photos**
 
 Replace `next.config.ts`:
 
@@ -3053,7 +3055,7 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-- [ ] **Step 2: Photo storage helpers**
+- [x] **Step 2: Photo storage helpers**
 
 `server/photos.ts`:
 
@@ -3092,7 +3094,7 @@ export async function photoUrls(paths: string[]): Promise<Map<string, string>> {
 }
 ```
 
-- [ ] **Step 3: Server Actions**
+- [x] **Step 3: Server Actions**
 
 `app/(app)/recipes/actions.ts`:
 
@@ -3179,7 +3181,7 @@ export async function importRecipe(
 }
 ```
 
-- [ ] **Step 4: The recipe editor (client)**
+- [x] **Step 4: The recipe editor (client)**
 
 `app/(app)/recipes/recipe-editor.tsx`:
 
@@ -3426,7 +3428,7 @@ function IngredientPreview({ text }: { text: string }) {
 }
 ```
 
-- [ ] **Step 5: New and edit pages**
+- [x] **Step 5: New and edit pages**
 
 `app/(app)/recipes/new/page.tsx`:
 
@@ -3474,7 +3476,7 @@ export default async function EditRecipePage(props: PageProps<"/recipes/[id]/edi
 }
 ```
 
-- [ ] **Step 6: Verify by hand**
+- [x] **Step 6: Verify by hand**
 
 Run: `pnpm dev`, sign in, open `http://localhost:3000/recipes/new`.
 
@@ -3487,7 +3489,7 @@ Run: `pnpm dev`, sign in, open `http://localhost:3000/recipes/new`.
 Run: `pnpm lint && pnpm test`
 Expected: both pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add next.config.ts server/photos.ts "app/(app)/recipes"
@@ -3511,7 +3513,7 @@ git commit -m "Add recipe editor with URL import and photo upload" -m "Co-Author
   - `requireUser`, `ui` (Task 8)
 - Produces: pages only.
 
-- [ ] **Step 1: The list page**
+- [x] **Step 1: The list page**
 
 Replace `app/(app)/recipes/page.tsx`:
 
@@ -3621,7 +3623,7 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
 }
 ```
 
-- [ ] **Step 2: The detail page, servings scaler and delete button**
+- [x] **Step 2: The detail page, servings scaler and delete button**
 
 `app/(app)/recipes/[id]/servings-scaler.tsx`:
 
@@ -3824,7 +3826,7 @@ export default function RecipesError({ error, retry }: { error: Error & { digest
 }
 ```
 
-- [ ] **Step 3: Verify by hand**
+- [x] **Step 3: Verify by hand**
 
 Run: `pnpm dev`, sign in.
 
@@ -3839,7 +3841,7 @@ Run: `pnpm dev`, sign in.
 Run: `pnpm lint && pnpm test && pnpm test:int`
 Expected: all pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add "app/(app)/recipes"
@@ -3857,7 +3859,7 @@ git commit -m "Add recipe list, detail page and servings scaler" -m "Co-Authored
 **Interfaces:**
 - Consumes the whole app. The tests sign in by generating a magic link with the admin API and visiting `/auth/confirm` directly (test-only; this uses the local secret key).
 
-- [ ] **Step 1: Install Playwright**
+- [x] **Step 1: Install Playwright**
 
 ```bash
 pnpm add -D @playwright/test
@@ -3905,7 +3907,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 2: Sign-in helper**
+- [x] **Step 2: Sign-in helper**
 
 `tests/e2e/helpers.ts`:
 
@@ -3935,7 +3937,7 @@ export async function deleteUser(id: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: Write the end-to-end tests**
+- [x] **Step 3: Write the end-to-end tests**
 
 `tests/e2e/recipes.spec.ts`:
 
@@ -4074,12 +4076,12 @@ test.describe("signed in", () => {
 });
 ```
 
-- [ ] **Step 4: Run the end-to-end tests**
+- [x] **Step 4: Run the end-to-end tests**
 
 Stop any running `pnpm dev`, then run: `pnpm test:e2e`
 Expected: PASS (6 tests). If `generateLink` plus `type=email` fails verification with your CLI version, change the confirm URL in `helpers.ts` to `type=magiclink`. That's a test-only change: the app's `/auth/confirm` passes `type` through unchanged.
 
-- [ ] **Step 5: Document setup in the README**
+- [x] **Step 5: Document setup in the README**
 
 Replace the body of `README.md` with:
 
@@ -4119,7 +4121,7 @@ pnpm test:e2e    # Playwright (needs local Supabase; stop `pnpm dev` first)
 4. On the host, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL`, `SITE_URL` and `ALLOWED_EMAILS`. Do not set `SUPABASE_SECRET_KEY` or `IMPORT_ALLOW_PRIVATE` in production.
 ````
 
-- [ ] **Step 6: Final check and commit**
+- [x] **Step 6: Final check and commit**
 
 Run: `pnpm lint && pnpm test && pnpm test:int && pnpm build`
 Expected: everything passes, and `pnpm build` completes without type errors.

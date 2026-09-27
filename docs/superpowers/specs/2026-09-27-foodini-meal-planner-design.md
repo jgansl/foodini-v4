@@ -1,7 +1,7 @@
 # Foodini — Meal Planner Design
 
 Date: 2026-09-27
-Status: Draft for review
+Status: Approved. Phase 1 is implemented ([jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1)); phases 2–5 are planned in `docs/ROADMAP.md`. Decisions made during implementation are logged in `docs/DECISIONS.md`.
 
 ## 1. Purpose
 
@@ -40,7 +40,7 @@ Multiple users or households, native apps, nutrition data, recipe versioning, pa
 - **Next.js 16 App Router.** Conventions from the bundled docs: `proxy.ts` (formerly middleware), and caching is opt-in through `use cache`. All data is per user and changes often, so pages render per request and **nothing uses `use cache`**.
 - **Reads:** Server Components query Postgres through Drizzle.
 - **Writes:** Server Actions (`app/**/actions.ts`) validate with Zod, write through Drizzle, then call `revalidatePath`. Forms work before client JavaScript loads (progressive enhancement); `useOptimistic` is used for check-offs and reordering.
-- **Auth:** Supabase Auth (email magic link) using `@supabase/ssr` cookies. `proxy.ts` refreshes the session and redirects signed-out visitors to `/login`, and is only an optimistic first check. Authorization is enforced in every action and query (user id from the verified session) **and** by row-level security on every table.
+- **Auth:** Supabase Auth (email magic link) using `@supabase/ssr` cookies. Only addresses in `ALLOWED_EMAILS` (full addresses or `@domain` entries) can request a link, and sessions for any other address are treated as signed out. `proxy.ts` refreshes the session and redirects signed-out visitors to `/login`, and is only an optimistic first check. Authorization is enforced in every action and query (user id from the verified session) **and** by row-level security on every table.
 - **Storage:** recipe photos go in a Supabase Storage bucket, under a per-user path prefix, with storage policies.
 - **Domain logic lives in pure TypeScript modules in `lib/`**, with no Next.js or database imports, so each can be unit-tested on its own:
 
@@ -61,13 +61,13 @@ Multiple users or households, native apps, nutrition data, recipe versioning, pa
 Every table has a `user_id uuid not null` column referencing `auth.users`, and row-level security policies of the form `user_id = auth.uid()` for select, insert, update and delete. Timestamps are `timestamptz`.
 
 ```
-items              id, user_id, name, section, unit_kind ('count'|'volume'|'weight'),
+items              id, user_id, name, key, section, unit_kind ('count'|'volume'|'weight'),
                    preferred_store_id? (phase 5)
-                   unique (user_id, lower(name))
+                   unique (user_id, key); key = normalized name (see Rules)
 
 recipes            id, user_id, title, servings (int > 0), steps text[], tags text[],
                    source_url?, image_path?, notes?, created_at, updated_at
-recipe_ingredients id, recipe_id → recipes (cascade), position, raw_text,
+recipe_ingredients id, user_id, recipe_id → recipes (cascade), position, raw_text,
                    item_id? → items, quantity? numeric, unit?, note?
 
 plan_entries       id, user_id, date, position, recipe_id → recipes (restrict),
@@ -89,7 +89,7 @@ price_records      id, user_id, item_id, store_id, price_cents int, quantity, un
 ```
 
 **Rules**
-- **Items** are created on demand the first time an ingredient names them. Matching is case-insensitive and ignores surrounding whitespace, with simple singular/plural folding ("eggs" matches "egg"). `unit_kind` is set from the first unit the item is used with; an item first seen with no unit gets `count`.
+- **Items** are created on demand the first time an ingredient names them. Matching is case-insensitive and ignores surrounding whitespace, with simple singular/plural folding ("eggs" matches "egg"). The normalized form (lowercase, punctuation removed, whitespace collapsed, last word singularized) is stored as `key`, and `name` keeps the first spelling seen. `unit_kind` is set from the first unit the item is used with; an item first seen with no unit gets `count`.
 - **Quantities** are stored as entered (`2`, `cup`) and converted to base units only when compared or summed.
 - **`raw_text`** is always kept. The parsed fields may be empty; a line with a recognized item but no quantity ("salt to taste") keeps `item_id` and leaves `quantity` empty.
 - **Deleting a recipe that's still planned** is blocked by `restrict`; the UI asks whether to remove its plan entries first.
@@ -173,7 +173,7 @@ A Server Action fetches the page on the server: only `http`/`https`, a 10 s time
 
 ## 9. Testing
 
-- **Vitest** unit tests for all of `lib/`: unit conversion and output-unit choice; the ingredient parser (fractions, unicode fractions like ½, ranges, "to taste", notes after commas); import against saved HTML fixtures from several recipe sites; table-driven grocery tests covering every row in §5, plus the buy → cook → uncook → uncheck round trip; pricing covering the store-choice order, the 90-day window, mismatched units and totals with unpriced items.
+- **Vitest** unit tests for all of `lib/`: unit conversion and output-unit choice; the ingredient parser (fractions, unicode fractions like ½, ranges, "to taste", notes after commas); import against hand-written HTML fixtures that reproduce the JSON-LD shapes real sites use (plain object, `@graph`, top-level array, `HowToSection`, HTML instruction strings); table-driven grocery tests covering every row in §5, plus the buy → cook → uncook → uncheck round trip; pricing covering the store-choice order, the 90-day window, mismatched units and totals with unpriced items.
 - **Playwright** end-to-end tests, one or two per phase, run against a local Supabase from the `supabase` CLI (requires Docker).
 - **Row-level security test:** a second user can't read or write the first user's rows.
 
