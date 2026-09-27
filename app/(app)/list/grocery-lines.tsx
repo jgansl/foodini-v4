@@ -3,7 +3,7 @@
 import { useOptimistic, useTransition } from "react";
 import { ui } from "@/components/ui";
 import type { GroceryLine } from "@/lib/grocery";
-import { hideLineAction, removeExtraAction, toggleExtraAction, toggleLineAction } from "./actions";
+import { hideLineAction, removeExtraAction } from "./actions";
 
 type Section = { section: string; lines: GroceryLine[] };
 
@@ -17,8 +17,7 @@ export function GroceryLines({ week, sections }: { week: string; sections: Secti
   function toggle(line: GroceryLine) {
     startTransition(async () => {
       flip(line.id);
-      if (line.extraId) await toggleExtraAction(line.extraId, !line.checked);
-      else await toggleLineAction(week, line.key, !line.checked);
+      await Promise.resolve(); // Interim: Task 3 replaces this with the offline queue.
     });
   }
 

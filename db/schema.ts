@@ -109,6 +109,8 @@ export const groceryExtras = pgTable(
     quantity: numeric("quantity", { mode: "number" }),
     unit: text("unit"),
     checked: boolean("checked").notNull().default(false),
+    /** When `checked` last changed; offline sync compares against it (last write wins). */
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("grocery_extras_user_week_idx").on(t.userId, t.weekStart)],
