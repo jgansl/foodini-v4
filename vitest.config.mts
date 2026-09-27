@@ -17,6 +17,17 @@ export default defineConfig({
         extends: true,
         test: { name: "unit", include: ["lib/**/*.test.ts"], environment: "node" },
       },
+      {
+        extends: true,
+        test: {
+          name: "integration",
+          include: ["tests/integration/**/*.test.ts"],
+          setupFiles: ["tests/integration/setup.ts"],
+          fileParallelism: false,
+          testTimeout: 20_000,
+          hookTimeout: 30_000,
+        },
+      },
     ],
   },
 });
