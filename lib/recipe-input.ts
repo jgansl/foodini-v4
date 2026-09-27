@@ -43,7 +43,7 @@ const recipeSchema = z.object({
     .min(1, "Servings is required")
     .pipe(
       z.coerce
-        .number({ error: "Servings must be a number" })
+        .number<string>({ error: "Servings must be a number" })
         .int("Servings must be a whole number")
         .min(1, "At least 1 serving")
         .max(100, "At most 100 servings"),
