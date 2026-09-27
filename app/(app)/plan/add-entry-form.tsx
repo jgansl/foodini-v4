@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { ui } from "@/components/ui";
+import type { PlanFieldErrors } from "@/lib/plan-input";
 import { addPlanEntryAction, type AddEntryState } from "./actions";
 
 type Props =
@@ -11,8 +12,17 @@ type Props =
 
 export function AddEntryForm(props: Props) {
   const [state, action, pending] = useActionState<AddEntryState, FormData>(addPlanEntryAction, null);
-  const errors = state?.fieldErrors ?? {};
+  const errors: PlanFieldErrors = state?.fieldErrors ?? {};
+  const values = state?.values;
   const idPrefix = props.mode === "day" ? `add-${props.date}` : "add-to-plan";
+  const errorId = (field: keyof PlanFieldErrors) => `${idPrefix}-${field}-error`;
+  const describedBy = (field: keyof PlanFieldErrors) => (errors[field] ? errorId(field) : undefined);
+  const fieldError = (field: keyof PlanFieldErrors) =>
+    errors[field] ? (
+      <p id={errorId(field)} role="alert" className={ui.error}>
+        {errors[field]}
+      </p>
+    ) : null;
 
   if (props.mode === "day" && props.recipes.length === 0) {
     return (
@@ -35,7 +45,14 @@ export function AddEntryForm(props: Props) {
             <label htmlFor={`${idPrefix}-recipe`} className={ui.label}>
               Recipe
             </label>
-            <select id={`${idPrefix}-recipe`} name="recipeId" defaultValue="" aria-invalid={!!errors.recipeId} className={ui.input}>
+            <select
+              id={`${idPrefix}-recipe`}
+              name="recipeId"
+              defaultValue={values?.recipeId ?? ""}
+              aria-invalid={!!errors.recipeId}
+              aria-describedby={describedBy("recipeId")}
+              className={ui.input}
+            >
               <option value="" disabled>
                 Choose a recipe…
               </option>
@@ -45,7 +62,7 @@ export function AddEntryForm(props: Props) {
                 </option>
               ))}
             </select>
-            {errors.recipeId && <p className={ui.error}>{errors.recipeId}</p>}
+            {fieldError("recipeId")}
           </div>
         </>
       ) : (
@@ -55,8 +72,16 @@ export function AddEntryForm(props: Props) {
             <label htmlFor={`${idPrefix}-date`} className={ui.label}>
               Day
             </label>
-            <input id={`${idPrefix}-date`} name="date" type="date" defaultValue={props.defaultDate} aria-invalid={!!errors.date} className={ui.input} />
-            {errors.date && <p className={ui.error}>{errors.date}</p>}
+            <input
+              id={`${idPrefix}-date`}
+              name="date"
+              type="date"
+              defaultValue={values?.date ?? props.defaultDate}
+              aria-invalid={!!errors.date}
+              aria-describedby={describedBy("date")}
+              className={ui.input}
+            />
+            {fieldError("date")}
           </div>
         </>
       )}
@@ -74,8 +99,9 @@ export function AddEntryForm(props: Props) {
             max={100}
             step={0.5}
             placeholder="Recipe's"
-            defaultValue={props.mode === "recipe" ? props.defaultServings : undefined}
+            defaultValue={values?.servings ?? (props.mode === "recipe" ? props.defaultServings : undefined)}
             aria-invalid={!!errors.servings}
+            aria-describedby={describedBy("servings")}
             className={ui.input}
           />
         </div>
@@ -83,11 +109,20 @@ export function AddEntryForm(props: Props) {
           <label htmlFor={`${idPrefix}-label`} className={ui.label}>
             Label (optional)
           </label>
-          <input id={`${idPrefix}-label`} name="label" maxLength={40} placeholder="Dinner" aria-invalid={!!errors.label} className={ui.input} />
+          <input
+            id={`${idPrefix}-label`}
+            name="label"
+            maxLength={40}
+            placeholder="Dinner"
+            defaultValue={values?.label ?? ""}
+            aria-invalid={!!errors.label}
+            aria-describedby={describedBy("label")}
+            className={ui.input}
+          />
         </div>
       </div>
-      {errors.servings && <p className={ui.error}>{errors.servings}</p>}
-      {errors.label && <p className={ui.error}>{errors.label}</p>}
+      {fieldError("servings")}
+      {fieldError("label")}
       <button type="submit" disabled={pending} className={ui.button}>
         {pending ? "Adding…" : props.mode === "day" ? "Add" : "Add to plan"}
       </button>

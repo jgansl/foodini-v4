@@ -2,6 +2,10 @@
 // never shifts a date.
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+// Outside this range, Date.UTC maps two-digit years to 19xx and toISOString() emits "+010000",
+// which Postgres rejects; no meal plan needs dates beyond it.
+const MIN_YEAR = 1900;
+const MAX_YEAR = 2999;
 
 function toUtc(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number);
@@ -15,6 +19,8 @@ function fromUtc(date: Date): string {
 export function isIsoDate(s: string): boolean {
   const match = ISO_DATE.exec(s);
   if (!match) return false;
+  const year = Number(match[1]);
+  if (year < MIN_YEAR || year > MAX_YEAR) return false;
   const date = toUtc(s);
   return (
     date.getUTCFullYear() === Number(match[1]) &&

@@ -9,6 +9,10 @@ describe("isIsoDate", () => {
     ["2026-02-30", false],
     ["2026-13-01", false],
     ["2026-9-1", false],
+    ["9999-12-31", false],
+    ["0100-01-01", false],
+    ["1899-12-31", false],
+    ["2999-12-31", true],
     ["junk", false],
     ["", false],
   ])("%j → %s", (s, expected) => {
@@ -53,7 +57,7 @@ describe("resolveWeek", () => {
     expect(resolveWeek("2026-10-01", "2026-09-27")).toBe("2026-09-28");
   });
 
-  it.each([undefined, "", "junk", "2026-02-30", "2026-13-01"])("uses today's week for %j", (param) => {
+  it.each([undefined, "", "junk", "2026-02-30", "2026-13-01", "9999-12-31", "0100-01-01"])("uses today's week for %j", (param) => {
     expect(resolveWeek(param, "2026-09-27")).toBe("2026-09-21");
   });
 });

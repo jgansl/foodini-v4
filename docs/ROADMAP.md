@@ -61,6 +61,10 @@ Keep every saved version of a recipe, and let a recipe branch into variations: "
 Known issues and deferred work. Items marked ★ block a later phase.
 
 **Parser and display**
+- ★ Containers that aren't units yet (`bag`, `bottle`, `box`) and sizes in inches still produce junk item names: "1 5 lb bag potatoes", "2 12-ounce bottles beer", "1 9-inch pie crust", "2 3 lb chickens". Add these container units and an inch-size pattern (`lib/units.ts`, `lib/ingredients.ts`).
+- ★ "2 garlic cloves" (key "garlic clove") and "3 cloves garlic" (key "garlic") don't merge into one item. Normalize "<item> cloves" to the item.
+- ★ A bare count unit becomes an item for every count unit ("2 cans" → item "can", "4 slices", "1 pinch", "2 heads", "1 bunch"). Only "cloves" (and maybe "sticks") are real items, so limit the rule to a whitelist (`lib/ingredients.ts`).
+- ★ Phase 2 changed the item keys for "bay leaves", "molasses", "grits" and "…halves". Items stored under the old keys won't match new ones. Re-normalize stored items once before phase 3 if any real data exists.
 - Scaled counts don't re-pluralize ("1 potatoes", "2 egg (large)") and can show fractions ("5 ¼ eggs").
 - Litres are labelled lowercase "l".
 - Scaled ranges use only the upper number.
@@ -73,6 +77,18 @@ Known issues and deferred work. Items marked ★ block a later phase.
 
 - The importer doesn't decode `&ntilde;` and most other named HTML entities: an imported step reads "jalape&ntilde;o". Decode the full HTML5 named-entity set, or at least accented Latin letters (`lib/import.ts`), and backfill already-imported recipes.
 - The importer only reads JSON-LD. Pages that mark recipes up with schema.org Microdata (`itemprop="recipeIngredient"`) import only a title. Add a Microdata fallback (`lib/import.ts`).
+
+**Meal plan**
+- Concurrent adds (two tabs) can give two entries the same position. "Move down" can then do nothing, and the order between them is undefined. Add `id` as a tiebreak in `listWeek`, and lock or renumber the day's rows when adding or moving (`db/queries/plan.ts`).
+- A plan entry inserted between `deleteRecipe`'s count and its delete raises a foreign-key error (500). Lock the recipe row (`SELECT … FOR UPDATE`) in both transactions (`db/queries/recipes.ts`, `db/queries/plan.ts`).
+- The entry editor says "Saved." for an entry that no longer exists (`updatePlanEntryAction` ignores the result).
+- After travelling, the time-zone cookie compares the new zone's date with UTC's instead of the old zone's, so one render can show a stale "today" (`components/timezone-cookie.tsx`).
+- A malformed `tz` cookie (for example `%E0`) makes `/plan` and recipe pages return a 500, because `decodeURIComponent` sits outside the try (`server/today.ts`).
+- "Planned N times" on a recipe page counts cooked and past entries, and links to the current week, where they may not be.
+- Delete and Remove confirmations need JavaScript. Before the page hydrates, the forms submit without asking (`components/confirm-form.tsx`).
+- The `?planned=` notice on a recipe page stays on reload and can be triggered by any link.
+- Accessibility: "Move up/down" and "Add a recipe" don't name the recipe or day ("Move Pasta up") for screen-reader rotor navigation.
+- Deploy note: a stray `NEXT_DIST_DIR` in a deploy environment would move the build output. Mention it in the README's Deploying section.
 
 **Photos**
 - If the database write fails after an upload, the uploaded photo is left in storage.

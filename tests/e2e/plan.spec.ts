@@ -64,6 +64,31 @@ test.describe("meal plan", () => {
     await expect(todaySection(page).getByRole("article")).toHaveText([/Tomato soup/]);
   });
 
+  test("plan forms keep what was typed when they can't save", async ({ page }) => {
+    const url = await createRecipeViaUi(page, "Soup for errors", 4, "1 onion");
+    await page.goto("/plan");
+    const today = todaySection(page);
+    await today.getByText("Add a recipe").click();
+    await today.getByLabel("Servings", { exact: true }).fill("3");
+    await today.getByLabel("Label (optional)").fill("Lunch");
+    await today.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(today.getByRole("alert")).toHaveText("Pick a recipe");
+    await expect(today.getByLabel("Servings", { exact: true })).toHaveValue("3");
+    await expect(today.getByLabel("Label (optional)")).toHaveValue("Lunch");
+
+    await page.goto(url);
+    await page.getByRole("button", { name: "Add to plan" }).click();
+    await expect(page).toHaveURL(/\/plan/);
+    const card = todaySection(page).getByRole("article", { name: "Soup for errors" });
+    await card.getByText("Edit or move").click();
+    await card.getByLabel("Servings", { exact: true }).fill("1.3");
+    await card.getByLabel("Label", { exact: true }).fill("Brunch");
+    await card.getByRole("button", { name: "Save" }).click();
+    await expect(card.getByRole("alert")).toHaveText("Use whole or half servings");
+    await expect(card.getByLabel("Servings", { exact: true })).toHaveValue("1.3");
+    await expect(card.getByLabel("Label", { exact: true })).toHaveValue("Brunch");
+  });
+
   test("uncooked meals from an earlier day get a nudge", async ({ page }) => {
     const url = await createRecipeViaUi(page, "Leftover stew", 2, "1 onion");
     await page.goto(url);
