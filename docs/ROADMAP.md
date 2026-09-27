@@ -5,8 +5,8 @@ Foodini is built in five phases. Each is a usable release, and each gets its own
 | # | Phase | Delivers | Status |
 |---|---|---|---|
 | 1 | Foundation and recipe box | Sign-in, recipes, ingredient parsing, URL import, photos, servings scaler | In review ([jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1)) |
-| 2 | Meal plan | Monday–Sunday plan with any number of entries per day, labels, per-entry servings, mark cooked | Next |
-| 3 | Grocery list and offline | List generated from the plan (scaled, merged, grouped by section), manual extras, hide items, check off, offline queue, then a service worker | Planned |
+| 2 | Meal plan | Monday–Sunday plan with any number of entries per day, labels, per-entry servings, mark cooked | In review ([jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2)) |
+| 3 | Grocery list and offline | List generated from the plan (scaled, merged, grouped by section), manual extras, hide items, check off, offline queue, then a service worker | Next |
 | 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | Planned |
 | 5 | Stores and prices | Price log, cost estimates, the list split by store in each store's section order | Planned |
 
@@ -58,12 +58,9 @@ Keep every saved version of a recipe, and let a recipe branch into variations: "
 - **Depends on:** phase 1. It needs a short design pass (brainstorm and spec section) before planning.
 
 ## Backlog
-Known issues deferred from phase 1's final review. Before phase 3, fix the parser items marked ★, because grocery merging depends on clean item keys.
+Known issues and deferred work. Items marked ★ block a later phase.
 
 **Parser and display**
-- ★ "2 14-ounce cans chickpeas" and "1 x 400g tin tomatoes" produce junk item names.
-- ★ Irregular plurals: "bay leaves" → "bay leave" (misses the "bay leaf" keyword), "molasses" → "molass".
-- ★ "2 cloves" (the spice) is read as the unit "clove" with no item.
 - Scaled counts don't re-pluralize ("1 potatoes", "2 egg (large)") and can show fractions ("5 ¼ eggs").
 - Litres are labelled lowercase "l".
 - Scaled ranges use only the upper number.
@@ -99,4 +96,5 @@ Known issues deferred from phase 1's final review. Before phase 3, fix the parse
   - Only content you own, or have permission to use, may be published.
 
 **Infrastructure**
+- The time-zone cookie's refresh (it runs only when the local date differs from UTC's) isn't covered by the end-to-end tests, which run while Los Angeles and UTC usually share a date. Pin the browser clock in a test, for example with Playwright's `page.clock`, to cover it (`components/timezone-cookie.tsx`).
 - No CI yet. Lint, unit tests and the build could run on GitHub Actions; integration and end-to-end tests need Supabase in Docker.

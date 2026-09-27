@@ -4,6 +4,22 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+Phase 2, the meal plan. In review as [jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2).
+
+### Added
+- **Meal plan** (`/plan`): Monday–Sunday weeks, any number of recipes per day with their own servings (whole or half) and an optional label. Reorder, move to another day, edit, mark cooked, remove.
+- **Add to plan** on recipe pages.
+- **Plan** tab in the navigation.
+- A nudge on uncooked meals from earlier days.
+- "Today" follows your own time zone.
+- End-to-end tests run beside your own `pnpm dev` (Playwright uses its own build folder).
+
+### Changed
+- Deleting a recipe that's in the plan now says how many planned meals it will remove.
+
+### Fixed
+- The ingredient parser reads container sizes ("2 14-ounce cans chickpeas", "1 x 400g tin tomatoes"), irregular plurals ("bay leaves", "molasses") and a bare count such as "2 cloves".
+
 ## [0.1.0] - 2026-09-27: Phase 1, foundation and recipe box
 
 In review as [jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1).
