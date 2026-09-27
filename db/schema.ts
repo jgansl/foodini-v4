@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, index, integer, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // user_id columns reference auth.users; the foreign keys live in the custom RLS migration
 // because drizzle-kit only manages the public schema.
@@ -55,4 +55,28 @@ export const recipeIngredients = pgTable(
     note: text("note"),
   },
   (t) => [index("recipe_ingredients_recipe_idx").on(t.recipeId, t.position)],
+);
+
+export const planEntries = pgTable(
+  "plan_entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    /** Calendar day, "YYYY-MM-DD". */
+    date: date("date", { mode: "string" }).notNull(),
+    position: integer("position").notNull(),
+    // NO ACTION (the default) blocks deleting a planned recipe like RESTRICT, but is checked at the end of
+    // the statement, so deleting a user cascades through recipes and plan entries in any order.
+    recipeId: uuid("recipe_id").notNull().references(() => recipes.id),
+    servings: numeric("servings", { mode: "number" }).notNull(),
+    label: text("label"),
+    cookedAt: timestamp("cooked_at", { withTimezone: true }),
+    /** Phase 4: item id → amount taken from inventory when cooked. */
+    deducted: jsonb("deducted").$type<Record<string, number>>(),
+  },
+  (t) => [
+    index("plan_entries_user_date_idx").on(t.userId, t.date, t.position),
+    index("plan_entries_recipe_idx").on(t.recipeId),
+    check("plan_entries_servings_positive", sql`${t.servings} > 0`),
+  ],
 );

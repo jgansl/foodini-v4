@@ -53,6 +53,18 @@ describe("row-level security", () => {
     expect(data).toEqual([]);
   });
 
+  it("hides plan entries from other users", async () => {
+    const { error } = await aliceDb.from("plan_entries").insert({ user_id: alice.id, recipe_id: recipeId, date: "2026-09-28", position: 0, servings: 2 });
+    expect(error).toBeNull();
+    const { data } = await bobDb.from("plan_entries").select("id");
+    expect(data).toEqual([]);
+  });
+
+  it("refuses plan entries that point at another user's recipe", async () => {
+    const { error } = await bobDb.from("plan_entries").insert({ user_id: bob.id, recipe_id: recipeId, date: "2026-09-28", position: 0, servings: 1 });
+    expect(error).not.toBeNull();
+  });
+
   it("gives the anonymous role nothing", async () => {
     const { data } = await anonClient().from("recipes").select("id");
     expect(data ?? []).toEqual([]);
