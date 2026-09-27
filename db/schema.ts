@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, jsonb, numeric, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, jsonb, numeric, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // user_id columns reference auth.users; the foreign keys live in the custom RLS migration
 // because drizzle-kit only manages the public schema.
@@ -79,4 +79,37 @@ export const planEntries = pgTable(
     index("plan_entries_recipe_idx").on(t.recipeId),
     check("plan_entries_servings_positive", sql`${t.servings} > 0`),
   ],
+);
+
+export const groceryMarks = pgTable(
+  "grocery_marks",
+  {
+    userId: uuid("user_id").notNull(),
+    /** Monday of the list's week, "YYYY-MM-DD". */
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    /** Line key: item:<id>:<unitKey> or raw:<text> (see lib/grocery.ts). */
+    key: text("key").notNull(),
+    checked: boolean("checked").notNull().default(false),
+    /** Amount bought, in base units (ml, g or count). Null for lines without an amount. */
+    checkedQty: numeric("checked_qty", { mode: "number" }),
+    hidden: boolean("hidden").notNull().default(false),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.weekStart, t.key] })],
+);
+
+export const groceryExtras = pgTable(
+  "grocery_extras",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").notNull(),
+    weekStart: date("week_start", { mode: "string" }).notNull(),
+    itemId: uuid("item_id").references(() => items.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    quantity: numeric("quantity", { mode: "number" }),
+    unit: text("unit"),
+    checked: boolean("checked").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("grocery_extras_user_week_idx").on(t.userId, t.weekStart)],
 );
