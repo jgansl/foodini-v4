@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatQuantity, matchUnit, unitKind, unitLabel } from "./units";
+import { formatAmount, formatQuantity, matchUnit, toBase, unitKeyForKind, unitKind, unitLabel } from "./units";
 
 describe("matchUnit", () => {
   it.each([
@@ -69,5 +69,43 @@ describe("formatQuantity", () => {
     [(1 + 1 / 3) * 1.5, "2"],
   ])("formats %d as %s", (n, expected) => {
     expect(formatQuantity(n)).toBe(expected);
+  });
+});
+
+describe("toBase", () => {
+  it("converts volume and weight to ml and g, keeping count units apart", () => {
+    expect(toBase(2, "cup")).toEqual({ unitKey: "volume", amount: expect.closeTo(473.176, 3), system: "us" });
+    expect(toBase(200, "g")).toEqual({ unitKey: "weight", amount: 200, system: "metric" });
+    expect(toBase(1, "lb")).toEqual({ unitKey: "weight", amount: expect.closeTo(453.592, 3), system: "us" });
+    expect(toBase(2, "can")).toEqual({ unitKey: "count:can", amount: 2, system: null });
+    expect(toBase(3, null)).toEqual({ unitKey: "count:each", amount: 3, system: null });
+  });
+
+  it("maps a unit kind to its key", () => {
+    expect(unitKeyForKind("volume")).toBe("volume");
+    expect(unitKeyForKind("weight")).toBe("weight");
+    expect(unitKeyForKind("count")).toBe("count:each");
+  });
+});
+
+describe("formatAmount", () => {
+  it.each([
+    ["volume", 236.588, "us", "1 cup"],
+    ["volume", 354.882, "us", "1 ½ cups"],
+    ["volume", 3 * 4.92892, "us", "1 tbsp"],
+    ["volume", 4.92892 / 2, "us", "½ tsp"],
+    ["volume", 2 * 14.7868, "us", "2 tbsp"],
+    ["volume", 750, "metric", "750 ml"],
+    ["volume", 1500, "metric", "1.5 l"],
+    ["volume", 2.5, "metric", "2.5 ml"],
+    ["weight", 653.592, "metric", "654 g"],
+    ["weight", 2 * 28.3495, "us", "2 oz"],
+    ["weight", 907.184, "us", "2 lb"],
+    ["weight", 1250, "metric", "1.25 kg"],
+    ["count:each", 3, null, "3"],
+    ["count:can", 2, null, "2 cans"],
+    ["count:clove", 1.5, null, "1 ½ cloves"],
+  ] as const)("formats %s %d (%s) as %j", (unitKey, amount, system, expected) => {
+    expect(formatAmount(unitKey, amount, system)).toBe(expected);
   });
 });

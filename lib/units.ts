@@ -93,3 +93,49 @@ export function formatQuantity(n: number): string {
   }
   return String(Math.round(n * 100) / 100);
 }
+
+export type UnitSystem = "us" | "metric";
+
+// Millilitres per volume unit and grams per weight unit.
+const TO_BASE: Record<string, number> = {
+  tsp: 4.92892, tbsp: 14.7868, cup: 236.588, "fl oz": 29.5735, pint: 473.176, quart: 946.353, gallon: 3785.41,
+  ml: 1, l: 1000, g: 1, kg: 1000, oz: 28.3495, lb: 453.592,
+};
+const METRIC_UNITS = new Set(["ml", "l", "g", "kg"]);
+
+/** Converts to a base amount: ml for volume, g for weight; each count unit stays its own unit. */
+export function toBase(quantity: number, unit: string | null): { unitKey: string; amount: number; system: UnitSystem | null } {
+  if (unit !== null && TO_BASE[unit] !== undefined) {
+    return { unitKey: unitKind(unit), amount: quantity * TO_BASE[unit], system: METRIC_UNITS.has(unit) ? "metric" : "us" };
+  }
+  return { unitKey: `count:${unit ?? "each"}`, amount: quantity, system: null };
+}
+
+export function unitKeyForKind(kind: UnitKind): string {
+  return kind === "count" ? "count:each" : kind;
+}
+
+const roundMetric = (n: number) => (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+function show(quantity: number, unit: string | null, metric: boolean): string {
+  const number = metric ? String(quantity) : formatQuantity(quantity);
+  return unit ? `${number} ${unitLabel(unit, quantity)}` : number;
+}
+
+/** A readable amount for a base amount: 48 tsp → "1 cup", 1500 ml → "1.5 l". */
+export function formatAmount(unitKey: string, amount: number, system: UnitSystem | null): string {
+  if (unitKey === "volume") {
+    if (system === "metric") return amount < 1000 ? show(roundMetric(amount), "ml", true) : show(round2(amount / 1000), "l", true);
+    if (amount < TO_BASE.tbsp * 0.99) return show(amount / TO_BASE.tsp, "tsp", false);
+    if (amount < (TO_BASE.cup / 4) * 0.99) return show(amount / TO_BASE.tbsp, "tbsp", false);
+    return show(amount / TO_BASE.cup, "cup", false);
+  }
+  if (unitKey === "weight") {
+    if (system === "metric") return amount < 1000 ? show(roundMetric(amount), "g", true) : show(round2(amount / 1000), "kg", true);
+    if (amount < TO_BASE.lb * 0.99) return show(amount / TO_BASE.oz, "oz", false);
+    return show(amount / TO_BASE.lb, "lb", false);
+  }
+  const unit = unitKey.slice("count:".length);
+  return show(amount, unit === "each" ? null : unit, false);
+}
