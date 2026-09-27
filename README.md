@@ -42,7 +42,7 @@ To start again: open Docker Desktop, run `pnpm exec supabase start`, then `pnpm 
 ```bash
 pnpm test        # unit tests (lib/)
 pnpm test:int    # database + row-level security (needs local Supabase)
-pnpm test:e2e    # Playwright (needs local Supabase; stop `pnpm dev` first)
+pnpm test:e2e    # Playwright (needs local Supabase; runs its own server on port 3100)
 ```
 
 ## Deploying

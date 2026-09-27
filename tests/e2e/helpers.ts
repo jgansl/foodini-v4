@@ -21,3 +21,13 @@ export async function signInAsNewUser(page: Page, domain = "example.test"): Prom
 export async function deleteUser(id: string): Promise<void> {
   await admin().auth.admin.deleteUser(id);
 }
+
+export async function createRecipeViaUi(page: Page, title: string, servings: number, ingredients: string): Promise<string> {
+  await page.goto("/recipes/new");
+  await page.getByLabel("Title", { exact: true }).fill(title);
+  await page.getByLabel("Servings", { exact: true }).fill(String(servings));
+  await page.getByLabel("Ingredients", { exact: true }).fill(ingredients);
+  await page.getByRole("button", { name: "Save recipe" }).click();
+  await page.getByRole("heading", { level: 1, name: title }).waitFor();
+  return page.url();
+}
