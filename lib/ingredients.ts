@@ -20,8 +20,12 @@ const NUMBER = String.raw`\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+`;
 const QUANTITY = new RegExp(String.raw`^(${NUMBER})(?:\s*(?:-|–|—|to)\s*(${NUMBER}))?(?=\s|[a-z]|$)\s*`, "i");
 const TO_TASTE = /[,\s]*\bto taste\b\.?$/i;
 const SIZE_WORDS = new Set(["small", "medium", "large", "extra-large", "big"]);
-// A package size before a container unit: "14-ounce cans", "400g tin", "28 oz can".
-const CONTAINER_SIZE = /^(\d+(?:\.\d+)?\s?-?\s?(?:ounces?|oz|grams?|g|kg|ml|l|lbs?|pounds?))\.?\s+(?=\S)/i;
+// A size before the item or its container: "14-ounce cans", "400g tin", "5 lb bag", "9-inch pie crust".
+const CONTAINER_SIZE = /^(\d+(?:\.\d+)?\s?-?\s?(?:ounces?|oz|grams?|g|kg|ml|l|lbs?|pounds?|inch(?:es)?|in|"))\.?\s+(?=\S)/i;
+// Only these count units are items in their own right when nothing follows them ("2 cloves" is the spice).
+const BARE_COUNT_ITEMS = new Set(["clove"]);
+// Words that describe a count-unit item rather than name another ingredient ("whole cloves", not "whole" × cloves).
+const DESCRIPTORS = new Set(["whole", "ground", "dried", "fresh", "large", "small", "medium"]);
 
 function expandUnicodeFractions(s: string): string {
   return s
@@ -80,9 +84,12 @@ export function parseIngredient(raw: string): ParsedIngredient {
         unit = container.unit;
         unitWord = tokens.slice(0, container.consumed).join(" ");
         rest = tokens.slice(container.consumed).join(" ");
+      } else {
+        containerNote = size[1].replace(/\s+/g, "");
+        rest = tokens.join(" ");
       }
     }
-    if (unit === null) {
+    if (unit === null && containerNote === null) {
       const tokens = rest.split(" ");
       const match = matchUnit(tokens);
       if (match) {
@@ -112,8 +119,16 @@ export function parseIngredient(raw: string): ParsedIngredient {
   if (words.length > 1 && SIZE_WORDS.has(words[0].toLowerCase())) sizeNote = words.shift()!.toLowerCase();
 
   let name = words.join(" ").toLowerCase() || null;
-  // "2 cloves" means the spice, not two cloves of something: a count unit with nothing after it is the item.
-  if (name === null && unit !== null && unitWord !== null && unitKind(unit) === "count") {
+  // "3 garlic cloves" → 3 clove garlic, matching "3 cloves garlic". Not "whole cloves", which is the item.
+  if (quantity !== null && unit === null && name !== null && words.length >= 2) {
+    const last = matchUnit([words[words.length - 1]]);
+    if (last && unitKind(last.unit) === "count" && !DESCRIPTORS.has(words[0].toLowerCase())) {
+      unit = last.unit;
+      name = words.slice(0, -1).join(" ").toLowerCase();
+    }
+  }
+  // "2 cloves" means the spice: only whitelisted count units become the item when nothing follows them.
+  if (name === null && unit !== null && unitWord !== null && BARE_COUNT_ITEMS.has(unit)) {
     name = unitWord.toLowerCase();
     unit = null;
   }

@@ -14,6 +14,9 @@ describe("matchUnit", () => {
     [["lbs", "beef"], "lb", 1],
     [["cloves", "garlic"], "clove", 1],
     [["cans", "tomatoes"], "can", 1],
+    [["bags", "potatoes"], "bag", 1],
+    [["bottles", "beer"], "bottle", 1],
+    [["box", "pasta"], "box", 1],
   ] as const)("reads %j as %s", (tokens, unit, consumed) => {
     expect(matchUnit([...tokens])).toEqual({ unit, consumed });
   });
@@ -44,6 +47,8 @@ describe("unitLabel", () => {
     expect(unitLabel("clove", 3)).toBe("cloves");
     expect(unitLabel("tbsp", 3)).toBe("tbsp");
     expect(unitLabel("fl oz", 2)).toBe("fl oz");
+    expect(unitLabel("box", 2)).toBe("boxes");
+    expect(unitLabel("bag", 2)).toBe("bags");
   });
 });
 
