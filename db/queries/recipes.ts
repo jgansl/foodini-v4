@@ -48,7 +48,7 @@ function recipeColumns(input: RecipeInput) {
   };
 }
 
-async function insertIngredients(tx: DbOrTx, userId: string, recipeId: string, lines: string[]): Promise<void> {
+export async function insertIngredients(tx: DbOrTx, userId: string, recipeId: string, lines: string[]): Promise<void> {
   if (lines.length === 0) return;
   const parsed = lines.map(parseIngredient);
   const itemIds = await resolveItems(

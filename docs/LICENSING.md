@@ -49,7 +49,7 @@ Production dependencies were checked with `pnpm licenses list --prod` on 2026-09
 
 **Conclusion:** no dependency requires Foodini to publish its code or adopt a particular license.
 
-Development-only tools (Vitest, Playwright, drizzle-kit, the Supabase CLI, ESLint, TypeScript) aren't shipped with the app. They are MIT or Apache-2.0 licensed.
+Development-only tools (Vitest, Playwright, drizzle-kit, the Supabase CLI, ESLint, TypeScript, tsx) aren't shipped with the app. They are MIT or Apache-2.0 licensed.
 
 ### Services
 The hosted services (Supabase, and whichever platform the app is deployed to) are governed by their terms of service, not by package licenses. Review them before launching publicly.
