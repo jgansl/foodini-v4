@@ -90,3 +90,27 @@ Plan changes re-render the page after each Server Action. `useOptimistic` is kep
 **Why:** Next allows one dev server per build folder, so the tests can now run while you use `pnpm dev`.
 **Cost:** a second build cache on disk.
 
+### D17. Grocery line keys include the count unit
+A line's key is `item:<id>:<unitKey>`, where `unitKey` is `volume`, `weight` or `count:<unit|each>`. Unparsed lines use `raw:<text>`, and extras use `extra:<id>`.
+**Why:** "1 can tomatoes" and "3 tomatoes" can't be added together; spec §3's `(item, unit_kind)` key would merge them into a wrong total.
+**Cost:** the same item can appear on two count lines ("1 can", "3").
+
+### D18. Before inventory, a checked amount means "bought this week"
+Until phase 4, `shortfall = required − checked_qty` for the line's mark. Phase 4 replaces this with inventory, and checking off adds to inventory instead; the result is the same.
+**Why:** it gives the spec's "plan grows after shopping" behavior now.
+**Cost:** phase 4 must migrate checked marks into inventory, or start the current week fresh.
+
+### D19. Readable grocery units follow the recipes' system
+A merged line is shown in metric if any contributing ingredient used a metric unit, otherwise in US units, using fixed ladders: tsp, tbsp, cup; oz, lb; ml, l; g, kg. Unit labels pluralize with the same tolerance `formatQuantity` rounds with.
+**Why:** predictable output without per-user settings.
+**Cost:** a mostly-US week with one metric recipe shows that item in metric.
+
+### D20. Offline support is its own plan (phase 3b)
+**Why:** the IndexedDB queue and service worker carry different risks, and spec §7 lets them slip.
+**Cost:** the list needs a connection until 3b ships.
+
+### D21. Re-parsing stored recipes is a maintenance script
+`pnpm db:reparse` re-parses every stored ingredient line with the current parser and deletes items nothing uses. It runs through `tsx` with the `react-server` condition, so the `server-only` modules load.
+**Why:** parser fixes otherwise only apply to recipes saved afterwards.
+**Cost:** run it deliberately after parser changes; it rewrites `recipe_ingredients` rows (their raw text is kept).
+
