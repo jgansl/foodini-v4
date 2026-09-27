@@ -121,7 +121,7 @@ describe("recipe queries", () => {
   it("deletes a recipe and its ingredients", async () => {
     const u = await newUser();
     const id = await createRecipe(u.id, base);
-    expect(await deleteRecipe(u.id, id)).toEqual({ imagePath: null });
+    expect(await deleteRecipe(u.id, id)).toEqual({ status: "deleted", imagePath: null });
     expect(await getRecipe(u.id, id)).toBeNull();
     const [{ n }] = await sqlClient<{ n: number }[]>`select count(*)::int as n from recipe_ingredients where recipe_id = ${id}`;
     expect(n).toBe(0);

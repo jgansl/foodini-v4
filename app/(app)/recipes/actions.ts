@@ -51,7 +51,7 @@ export async function saveRecipe(recipeId: string | null, _prev: RecipeFormState
 export async function deleteRecipeAction(recipeId: string): Promise<void> {
   const user = await requireUser();
   const deleted = await deleteRecipe(user.id, recipeId);
-  if (deleted?.imagePath) await removePhoto(deleted.imagePath);
+  if (deleted?.status === "deleted" && deleted.imagePath) await removePhoto(deleted.imagePath);
   revalidatePath("/recipes");
   redirect("/recipes");
 }

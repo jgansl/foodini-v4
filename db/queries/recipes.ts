@@ -1,7 +1,7 @@
 import "server-only";
-import { and, arrayContains, asc, desc, eq, ilike, sql } from "drizzle-orm";
+import { and, arrayContains, asc, count, desc, eq, ilike, sql } from "drizzle-orm";
 import { db, type DbOrTx } from "@/db";
-import { recipeIngredients, recipes } from "@/db/schema";
+import { planEntries, recipeIngredients, recipes } from "@/db/schema";
 import { normalizeItemName, parseIngredient } from "@/lib/ingredients";
 import type { RecipeInput } from "@/lib/recipe-input";
 import { resolveItems } from "./items";
@@ -154,11 +154,29 @@ export async function updateRecipe(userId: string, id: string, input: RecipeInpu
   });
 }
 
-export async function deleteRecipe(userId: string, id: string): Promise<{ imagePath: string | null } | null> {
+export type DeleteRecipeResult = { status: "deleted"; imagePath: string | null } | { status: "planned"; count: number };
+
+/**
+ * Deletes the user's recipe. If it is still planned, returns `{ status: "planned" }` instead,
+ * unless `removePlanEntries` is set, in which case its plan entries are deleted too.
+ */
+export async function deleteRecipe(
+  userId: string,
+  id: string,
+  opts: { removePlanEntries?: boolean } = {},
+): Promise<DeleteRecipeResult | null> {
   if (!UUID.test(id)) return null;
-  const [row] = await db
-    .delete(recipes)
-    .where(and(eq(recipes.id, id), eq(recipes.userId, userId)))
-    .returning({ imagePath: recipes.imagePath });
-  return row ?? null;
+  return db.transaction(async (tx) => {
+    const ownedRecipe = and(eq(recipes.id, id), eq(recipes.userId, userId));
+    const [recipe] = await tx.select({ id: recipes.id }).from(recipes).where(ownedRecipe);
+    if (!recipe) return null;
+    const plannedFor = and(eq(planEntries.recipeId, id), eq(planEntries.userId, userId));
+    const [{ n }] = await tx.select({ n: count() }).from(planEntries).where(plannedFor);
+    if (n > 0) {
+      if (!opts.removePlanEntries) return { status: "planned", count: n };
+      await tx.delete(planEntries).where(plannedFor);
+    }
+    const [row] = await tx.delete(recipes).where(ownedRecipe).returning({ imagePath: recipes.imagePath });
+    return row ? { status: "deleted", imagePath: row.imagePath } : null;
+  });
 }
