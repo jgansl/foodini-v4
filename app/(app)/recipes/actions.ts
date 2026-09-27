@@ -48,11 +48,14 @@ export async function saveRecipe(recipeId: string | null, _prev: RecipeFormState
   redirect(`/recipes/${id}`);
 }
 
-export async function deleteRecipeAction(recipeId: string): Promise<void> {
+export async function deleteRecipeAction(recipeId: string, removePlanned: boolean): Promise<void> {
   const user = await requireUser();
-  const deleted = await deleteRecipe(user.id, recipeId);
-  if (deleted?.status === "deleted" && deleted.imagePath) await removePhoto(deleted.imagePath);
+  const result = await deleteRecipe(user.id, recipeId, { removePlanEntries: removePlanned === true });
+  // Planned since the page was rendered: show the recipe again with the up-to-date count.
+  if (result?.status === "planned") redirect(`/recipes/${recipeId}?planned=${result.count}`);
+  if (result?.status === "deleted" && result.imagePath) await removePhoto(result.imagePath);
   revalidatePath("/recipes");
+  revalidatePath("/plan");
   redirect("/recipes");
 }
 

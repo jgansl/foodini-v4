@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ui } from "@/components/ui";
+import { countPlanned } from "@/db/queries/plan";
 import { getRecipe } from "@/db/queries/recipes";
 import { requireUser } from "@/server/auth";
 import { photoUrls } from "@/server/photos";
+import { getToday } from "@/server/today";
+import { AddEntryForm } from "../../plan/add-entry-form";
 import { deleteRecipeAction } from "../actions";
 import { DeleteRecipeButton } from "./delete-button";
 import { ServingsScaler } from "./servings-scaler";
@@ -13,6 +16,8 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
   const user = await requireUser(`/recipes/${id}`);
   const recipe = await getRecipe(user.id, id);
   if (!recipe) notFound();
+  const [plannedCount, today, search] = await Promise.all([countPlanned(user.id, recipe.id), getToday(), props.searchParams]);
+  const plannedNotice = typeof search.planned === "string" ? Number(search.planned) : 0;
 
   const photo = recipe.imagePath ? (await photoUrls([recipe.imagePath])).get(recipe.imagePath) : undefined;
   const sourceHost = recipe.sourceUrl ? new URL(recipe.sourceUrl).hostname : null;
@@ -28,9 +33,15 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
           <Link href={`/recipes/${recipe.id}/edit`} className={ui.buttonSecondary}>
             Edit
           </Link>
-          <DeleteRecipeButton action={deleteRecipeAction.bind(null, recipe.id)} title={recipe.title} />
+          <DeleteRecipeButton action={deleteRecipeAction.bind(null, recipe.id, plannedCount > 0)} title={recipe.title} plannedCount={plannedCount} />
         </div>
       </div>
+
+      {plannedNotice > 0 && (
+        <p role="alert" className="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          This recipe was just added to a plan. Delete it again to remove it from {plannedNotice} planned meal{plannedNotice === 1 ? "" : "s"}.
+        </p>
+      )}
 
       {photo && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -64,6 +75,21 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
           </section>
         )}
       </div>
+
+      <section aria-labelledby="plan-heading" className={`${ui.card} mt-8`}>
+        <h2 id="plan-heading" className="text-lg font-semibold">
+          Add to plan
+        </h2>
+        {plannedCount > 0 && (
+          <p className={ui.hint}>
+            Planned {plannedCount} time{plannedCount === 1 ? "" : "s"}.{" "}
+            <Link href="/plan" className="underline">
+              See the plan
+            </Link>
+          </p>
+        )}
+        <AddEntryForm mode="recipe" recipeId={recipe.id} defaultDate={today} defaultServings={recipe.servings} />
+      </section>
 
       {recipe.notes && (
         <section aria-labelledby="notes-heading" className="mt-8">

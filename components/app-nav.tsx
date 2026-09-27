@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Later phases add Plan, List and Inventory here.
-const TABS = [{ href: "/recipes", label: "Recipes" }];
+// Later phases add List and Inventory here.
+const TABS = [
+  { href: "/recipes", label: "Recipes" },
+  { href: "/plan", label: "Plan" },
+];
 
 export function AppNav() {
   const pathname = usePathname();
