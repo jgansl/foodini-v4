@@ -31,3 +31,4 @@ Check legal and licensing implications as part of every change, not just at rele
 - **Name and branding:** "Foodini" may conflict with an existing trademark. Don't add logos, domains or marketing copy that depend on the name until the trademark check in the backlog is resolved.
 - **Before every PR:** run `pnpm licenses list --prod` and compare it with the previous run. Mention any new or changed license in the PR description.
 - **Open questions:** log every unresolved legal or licensing question in the Legal part of the Backlog in `docs/ROADMAP.md`.
+- **Licensing record:** keep `docs/LICENSING.md` current whenever a dependency's license changes, a project license is chosen, or a new kind of third-party content enters the app.

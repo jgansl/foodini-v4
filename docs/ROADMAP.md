@@ -49,6 +49,14 @@ Public posts about cooking, recipes and what you've been making.
 - **Recipes in posts:** you can publish recipes you wrote. Recipes imported from other sites can only be linked and credited, never republished (see the Legal backlog).
 - **Legal gate:** resolve the project license and the "Foodini" trademark check before launching anything public (see the Legal backlog).
 
+### F6. Recipe history and variations
+Keep every saved version of a recipe, and let a recipe branch into variations: "Pizza dough" → "Thick crust", "Thin crust", "Whole wheat".
+- **History:** each save stores an immutable snapshot (title, servings, ingredient lines, steps, notes) with a timestamp and an optional note ("less salt"). You can view past versions, compare two, and restore one (restoring saves a new version rather than rewriting history).
+- **Variations:** "Make a variation" copies the current recipe into a new recipe linked to its parent (`recipes.parent_id`, `variation_name`). Variations diverge freely, get their own history, and are listed together on the base recipe's page. The alternative is storing a variation as overrides on its base: less duplication, but much more complex. Decide in a spec section.
+- **Data (sketch):** `recipe_versions` (id, user_id, recipe_id, version, snapshot jsonb, note, created_at), plus `recipes.parent_id` and `recipes.variation_name`.
+- **Fits the plan and grocery design:** a variation is an ordinary recipe row, so plan entries and grocery lines reference the exact variation you're cooking, with no change to phases 2–5.
+- **Depends on:** phase 1. It needs a short design pass (brainstorm and spec section) before planning.
+
 ## Backlog
 Known issues deferred from phase 1's final review. Before phase 3, fix the parser items marked ★, because grocery merging depends on clean item keys.
 
@@ -65,6 +73,9 @@ Known issues deferred from phase 1's final review. Before phase 3, fix the parse
 - Importing overwrites fields you've already typed. It should fill only empty fields, or ask first.
 - Pages are always decoded as UTF-8, so Latin-1 pages mangle characters like ½.
 - `isPrivateAddress` misses a few rare IPv6 ranges: `::7f00:1`, `64:ff9b::/96`, `2002::/16`, `fec0::/10`.
+
+- The importer doesn't decode `&ntilde;` and most other named HTML entities: an imported step reads "jalape&ntilde;o". Decode the full HTML5 named-entity set, or at least accented Latin letters (`lib/import.ts`), and backfill already-imported recipes.
+- The importer only reads JSON-LD. Pages that mark recipes up with schema.org Microdata (`itemprop="recipeIngredient"`) import only a title. Add a Microdata fallback (`lib/import.ts`).
 
 **Photos**
 - If the database write fails after an upload, the uploaded photo is left in storage.
