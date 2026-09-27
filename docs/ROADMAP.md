@@ -37,5 +37,11 @@ Known issues deferred from phase 1's final review. Before phase 3, fix the parse
 - If the database write fails after an upload, the uploaded photo is left in storage.
 - If a recipe is deleted while being edited, saving orphans the new photo.
 
+**Legal**
+- Choose a project license. There is none yet, so all rights are reserved. The options (proprietary, source-available, AGPL, permissive) are listed in the phase 1 discussion; add `LICENSE` and a README copyright line once chosen.
+- Trademark check on "Foodini": Natural Machines sells a Foodini 3D food printer. Search the USPTO and EUIPO registers before any public launch or branding.
+- Imported recipe text and photos are third-party copyright. They're fine in a private recipe box, but any sharing or publishing feature needs review first.
+- `sharp` pulls in libvips under LGPL-3.0. That's fine for a hosted app; revisit if Foodini is ever distributed as a binary or desktop build.
+
 **Infrastructure**
 - No CI yet. Lint, unit tests and the build could run on GitHub Actions; integration and end-to-end tests need Supabase in Docker.
