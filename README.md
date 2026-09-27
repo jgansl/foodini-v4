@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Foodini
 
-## Getting Started
+Recipes, weekly meal plans and grocery lists. See `docs/superpowers/specs/` for the design.
 
-First, run the development server:
+## Local development
+
+Requires Node 22, pnpm and Docker.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+pnpm exec supabase start        # local Postgres, Auth, Storage, Mailpit
+cp .env.example .env.local      # then fill in keys from `pnpm exec supabase status` and your email in ALLOWED_EMAILS
+pnpm db:migrate
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sign-in emails arrive in Mailpit at http://127.0.0.1:54324.
+After `pnpm exec supabase db reset`, run `pnpm db:migrate` again.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tests
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm test        # unit tests (lib/)
+pnpm test:int    # database + row-level security (needs local Supabase)
+pnpm test:e2e    # Playwright (needs local Supabase; stop `pnpm dev` first)
+```
 
-## Learn More
+## Deploying
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create a Supabase project. Set `DATABASE_URL` to its connection string (transaction pooler), then run `pnpm db:migrate`.
+2. In Auth → URL Configuration, set the Site URL to your domain and add `https://<your-domain>/**` to the redirect URLs.
+3. In Auth → Email Templates, set both **Magic Link** and **Confirm signup** to the body of `supabase/templates/magic-link.html`.
+4. On the host, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL`, `SITE_URL` and `ALLOWED_EMAILS`. Do not set `SUPABASE_SECRET_KEY` or `IMPORT_ALLOW_PRIVATE` in production.
