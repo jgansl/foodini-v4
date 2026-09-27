@@ -42,6 +42,7 @@ for (const [canonical, def] of Object.entries(UNITS)) {
 }
 
 const stripDot = (token: string) => token.replace(/\.$/, "");
+const TOLERANCE = 0.02;
 
 /** Reads a unit from the start of `tokens`. Two-word units ("fl oz") win over one-word ones. */
 export function matchUnit(tokens: string[]): { unit: string; consumed: number } | null {
@@ -64,7 +65,8 @@ export function unitKind(unit: string): UnitKind {
 
 export function unitLabel(unit: string, quantity: number): string {
   const def = UNITS[unit];
-  if (!def || def.abbreviation || quantity <= 1) return unit;
+  // Same tolerance as formatQuantity: 1.0000001 (float error) and 1.01 both display as "1".
+  if (!def || def.abbreviation || quantity < 1 + TOLERANCE) return unit;
   return /(ch|sh|s|x)$/.test(unit) ? `${unit}es` : `${unit}s`;
 }
 
@@ -79,7 +81,6 @@ const FRACTIONS: [number, string][] = [
   [3 / 4, "¾"],
   [7 / 8, "⅞"],
 ];
-const TOLERANCE = 0.02;
 
 /** Formats a quantity for cooks: common fractions as glyphs, anything else to two decimals. */
 export function formatQuantity(n: number): string {

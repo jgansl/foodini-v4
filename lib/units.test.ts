@@ -47,6 +47,8 @@ describe("unitLabel", () => {
     expect(unitLabel("clove", 3)).toBe("cloves");
     expect(unitLabel("tbsp", 3)).toBe("tbsp");
     expect(unitLabel("fl oz", 2)).toBe("fl oz");
+    expect(unitLabel("cup", 1.0000000001)).toBe("cup");
+    expect(unitLabel("cup", 1.01)).toBe("cup");
     expect(unitLabel("box", 2)).toBe("boxes");
     expect(unitLabel("bag", 2)).toBe("bags");
   });
