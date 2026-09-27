@@ -19,6 +19,9 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 #### Fixed
 - The ingredient parser reads more containers ("5 lb bag potatoes", "12-ounce bottles beer"), sizes in inches ("9-inch pie crust"), "3 garlic cloves" the same as "3 cloves garlic", and no longer treats "2 cans" as an item called "can".
 - Units pluralize correctly after arithmetic ("1 cup", not "1 cups").
+- "1-1/2 cups" is read as 1½ cups, not the range 1 to ½.
+- "Tea bags", "fish sticks" and "chicken pieces" stay items. Only clove, sprig, head, bunch and slice are read as units after an item name ("garlic cloves", "thyme sprigs").
+- Checking a line off keeps keyboard focus on it.
 
 ### Phase 2, meal plan
 

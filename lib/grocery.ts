@@ -16,6 +16,8 @@ export type GroceryIngredient = {
 export type GroceryMark = { key: string; checked: boolean; checkedQty: number | null; hidden: boolean };
 export type GroceryExtra = { id: string; name: string; quantity: number | null; unit: string | null; section: string | null; checked: boolean };
 export type GroceryLine = {
+  /** Stable row id: the key itself, so a line keeps its identity (and focus) from need to bought.
+   * Only the extra "still needed" line shown next to a bought line gets a `#more` suffix. */
   id: string;
   key: string;
   kind: "need" | "bought" | "extra";
@@ -103,16 +105,16 @@ export function buildGroceryList(
 
     if (group.required === null) {
       const checked = mark?.checked ?? false;
-      lines.push({ ...common, id: `${group.key}#${checked ? "bought" : "need"}`, kind: checked ? "bought" : "need", label: group.name, checked, shortfallBase: null });
+      lines.push({ ...common, id: group.key, kind: checked ? "bought" : "need", label: group.name, checked, shortfallBase: null });
       continue;
     }
     const bought = mark?.checked ? (mark.checkedQty ?? group.required) : 0;
     const shortfall = Math.max(0, group.required - bought);
     if (mark?.checked) {
-      lines.push({ ...common, id: `${group.key}#bought`, kind: "bought", label: labelFor(amount(bought), group.name), checked: true, shortfallBase: null });
+      lines.push({ ...common, id: group.key, kind: "bought", label: labelFor(amount(bought), group.name), checked: true, shortfallBase: null });
     }
     if (shortfall > group.required * 1e-6) {
-      lines.push({ ...common, id: `${group.key}#need`, kind: "need", label: labelFor(amount(shortfall), group.name), checked: false, shortfallBase: shortfall });
+      lines.push({ ...common, id: mark?.checked ? `${group.key}#more` : group.key, kind: "need", label: labelFor(amount(shortfall), group.name), checked: false, shortfallBase: shortfall });
     }
   }
 

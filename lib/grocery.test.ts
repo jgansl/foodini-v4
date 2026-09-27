@@ -26,7 +26,7 @@ describe("buildGroceryList", () => {
       [],
     );
     expect(labels(list)).toEqual(["pantry: 2 cups flour"]);
-    expect(list.sections[0].lines[0]).toMatchObject({ key: "item:i-flour:volume", kind: "need", recipes: ["Bread", "Pancakes"], shortfallBase: expect.closeTo(473.176, 2) });
+    expect(list.sections[0].lines[0]).toMatchObject({ id: "item:i-flour:volume", key: "item:i-flour:volume", kind: "need", recipes: ["Bread", "Pancakes"], shortfallBase: expect.closeTo(473.176, 2) });
   });
 
   it("converts within a kind to a readable unit", () => {
@@ -83,7 +83,8 @@ describe("buildGroceryList", () => {
     const marks: GroceryMark[] = [{ key: "item:i-flour:volume", checked: true, checkedQty: 473.176, hidden: false }];
     const list = buildGroceryList([ing({ ...FLOUR, quantity: 2, unit: "cup" })], marks, []);
     expect(labels(list)).toEqual(["pantry: ✓ 2 cups flour"]);
-    expect(list.sections[0].lines[0]).toMatchObject({ kind: "bought", id: "item:i-flour:volume#bought" });
+    // Same id as the need line it replaces, so the row (and keyboard focus) survives the re-render.
+    expect(list.sections[0].lines[0]).toMatchObject({ kind: "bought", id: "item:i-flour:volume" });
     expect(list).toMatchObject({ toBuy: 0, checked: 1 });
   });
 
@@ -91,7 +92,8 @@ describe("buildGroceryList", () => {
     const marks: GroceryMark[] = [{ key: "item:i-flour:volume", checked: true, checkedQty: 473.176, hidden: false }];
     const list = buildGroceryList([ing({ ...FLOUR, quantity: 3, unit: "cup" })], marks, []);
     expect(labels(list)).toEqual(["pantry: 1 cup flour", "pantry: ✓ 2 cups flour"]);
-    expect(list.sections[0].lines[0]).toMatchObject({ kind: "need", shortfallBase: expect.closeTo(236.588, 2) });
+    expect(list.sections[0].lines[0]).toMatchObject({ kind: "need", id: "item:i-flour:volume#more", shortfallBase: expect.closeTo(236.588, 2) });
+    expect(list.sections[0].lines[1]).toMatchObject({ kind: "bought", id: "item:i-flour:volume" });
   });
 
   it("checks an amount-less line with no quantity", () => {

@@ -76,6 +76,17 @@ Known issues and deferred work. Items marked ★ block a later phase.
 - The importer only reads JSON-LD. Pages that mark recipes up with schema.org Microdata (`itemprop="recipeIngredient"`) import only a title. Add a Microdata fallback (`lib/import.ts`).
 
 **Grocery list**
+- Count lines don't pluralize the item name ("4 egg" when the item was first saved as "egg"). This is the same issue as the scaler's re-pluralization item under Parser and display.
+- `pnpm db:reparse` side effects:
+  - marks keyed by an item whose key changed are orphaned, so those lines reappear unchecked;
+  - a recipe edited while the script runs can be overwritten;
+  - the final unused-item delete can race a concurrent save.
+
+  ★ Before phase 4, extend its "unused item" check to inventory, price records and `plan_entries.deducted`, or retire the script (`db/queries/maintenance.ts`).
+- "Unhide" and "Hide" accept any well-formed key and upsert an inert mark for the caller's own account. It's harmless, but could reuse `checkGroceryLine`'s on-list check.
+- The Hide and Remove controls are about 20 px tall, below the 24 px minimum target size (WCAG 2.5.8). After the plan grows, two identical "Hide flour" buttons appear.
+- If an amount-less line ("salt to taste") is checked and a recipe with "1 tsp salt" is planned later, the mark covers the new amount with no need line. That's arguably right, but it should get a unit test so the behavior is intentional.
+
 - Checking an item off and then reloading within a second can lose the check, because the tick is optimistic and the save is cut off. Phase 3b's offline queue fixes this by storing check-offs locally first (`app/(app)/list/grocery-lines.tsx`).
 - Check-offs need JavaScript. Without it the checkboxes do nothing. They could become form submissions for progressive enhancement.
 - Checking an item off records the whole shortfall, so you can't type the amount you actually bought (spec §5: "the quantity can be edited before confirming"). Add a quantity editor, which matters once inventory exists (phase 4).

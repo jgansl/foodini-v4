@@ -26,6 +26,9 @@ const CONTAINER_SIZE = /^(\d+(?:\.\d+)?\s?-?\s?(?:ounces?|oz|grams?|g|kg|ml|l|lb
 const BARE_COUNT_ITEMS = new Set(["clove"]);
 // Words that describe a count-unit item rather than name another ingredient ("whole cloves", not "whole" × cloves).
 const DESCRIPTORS = new Set(["whole", "ground", "dried", "fresh", "large", "small", "medium"]);
+// Count units that genuinely follow an item name ("garlic cloves", "thyme sprigs"). Not bag/stick/piece:
+// "tea bags" and "fish sticks" are items, not containers of tea or fish.
+const TRAILING_UNITS = new Set(["clove", "sprig", "head", "bunch", "slice"]);
 
 function expandUnicodeFractions(s: string): string {
   return s
@@ -61,8 +64,9 @@ export function parseIngredient(raw: string): ParsedIngredient {
   let quantity: number | null = null;
   const q = QUANTITY.exec(rest);
   if (q) {
-    // For a range, buy for the upper bound.
-    const value = parseNumber(q[2] ?? q[1]);
+    // "1-1/2" is a mixed number (1½), not the range 1 to ½. Otherwise, for a range buy for the upper bound.
+    const mixed = q[2] !== undefined && /^\d+$/.test(q[1].trim()) && /^\d+\/\d+$/.test(q[2].trim()) && parseNumber(q[2]) < 1;
+    const value = mixed ? parseNumber(q[1]) + parseNumber(q[2]) : parseNumber(q[2] ?? q[1]);
     if (Number.isFinite(value) && value > 0) quantity = value;
     rest = rest.slice(q[0].length);
   } else if (/^(a|an)\s/i.test(rest)) {
@@ -122,7 +126,8 @@ export function parseIngredient(raw: string): ParsedIngredient {
   // "3 garlic cloves" → 3 clove garlic, matching "3 cloves garlic". Not "whole cloves", which is the item.
   if (quantity !== null && unit === null && name !== null && words.length >= 2) {
     const last = matchUnit([words[words.length - 1]]);
-    if (last && unitKind(last.unit) === "count" && !DESCRIPTORS.has(words[0].toLowerCase())) {
+    const onlyDescriptors = words.slice(0, -1).every((w) => DESCRIPTORS.has(w.toLowerCase()));
+    if (last && TRAILING_UNITS.has(last.unit) && !onlyDescriptors) {
       unit = last.unit;
       name = words.slice(0, -1).join(" ").toLowerCase();
     }

@@ -72,6 +72,18 @@ test.describe("grocery list", () => {
     await expect(page.getByRole("alert").filter({ hasText: "Type an item to add." })).toBeVisible();
   });
 
+  test("keyboard focus stays on a line after checking it off", async ({ page }) => {
+    const soup = await createRecipeViaUi(page, "Focus soup", 2, "2 cups stock");
+    await planForToday(page, soup);
+    await page.goto("/list");
+    const box = line(page, "2 cups stock").getByRole("checkbox");
+    await box.focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByText(/· 1 checked/)).toBeVisible();
+    await expect(box).toBeChecked();
+    await expect(box).toBeFocused();
+  });
+
   test("an empty week points to the plan", async ({ page }) => {
     await page.goto("/list?week=2026-10-05");
     await expect(page.getByText("Nothing to buy this week.")).toBeVisible();

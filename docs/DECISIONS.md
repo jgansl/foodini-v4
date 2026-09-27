@@ -112,5 +112,5 @@ A merged line is shown in metric if any contributing ingredient used a metric un
 ### D21. Re-parsing stored recipes is a maintenance script
 `pnpm db:reparse` re-parses every stored ingredient line with the current parser and deletes items nothing uses. It runs through `tsx` with the `react-server` condition, so the `server-only` modules load.
 **Why:** parser fixes otherwise only apply to recipes saved afterwards.
-**Cost:** run it deliberately after parser changes; it rewrites `recipe_ingredients` rows (their raw text is kept).
+**Cost:** run it deliberately after parser changes. It rewrites `recipe_ingredients` rows, keeping their raw text and order. It orphans this week's grocery marks for items whose key changed. Its unused-item delete must learn about inventory and prices before phase 4.
 
