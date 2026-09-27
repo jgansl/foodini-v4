@@ -13,7 +13,8 @@
     "db:migrate": "drizzle-kit migrate",
     "test:int": "vitest run --project integration",
     "test:e2e": "playwright test",
-    "db:reparse": "node --conditions=react-server --import tsx scripts/reparse-ingredients.ts"
+    "db:reparse": "node --conditions=react-server --import tsx scripts/reparse-ingredients.ts",
+    "test:e2e:sw": "playwright test -c playwright.sw.config.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
