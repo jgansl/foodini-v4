@@ -6,7 +6,8 @@ Foodini is built in five phases. Each is a usable release, and each gets its own
 |---|---|---|---|
 | 1 | Foundation and recipe box | Sign-in, recipes, ingredient parsing, URL import, photos, servings scaler | In review ([jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1)) |
 | 2 | Meal plan | Monday–Sunday plan with any number of entries per day, labels, per-entry servings, mark cooked | In review ([jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2)) |
-| 3 | Grocery list and offline | List generated from the plan (scaled, merged, grouped by section), manual extras, hide items, check off, offline queue, then a service worker | Next |
+| 3a | Grocery list | List generated from the plan (scaled, merged, readable units, grouped by section), instant check-offs, hide for the week, extras | In review |
+| 3b | Offline list | Saved list and queued check-offs in IndexedDB, then a service worker so `/list` opens with no signal (spec §7) | Next |
 | 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | Planned |
 | 5 | Stores and prices | Price log, cost estimates, the list split by store in each store's section order | Planned |
 
@@ -61,10 +62,6 @@ Keep every saved version of a recipe, and let a recipe branch into variations: "
 Known issues and deferred work. Items marked ★ block a later phase.
 
 **Parser and display**
-- ★ Containers that aren't units yet (`bag`, `bottle`, `box`) and sizes in inches still produce junk item names: "1 5 lb bag potatoes", "2 12-ounce bottles beer", "1 9-inch pie crust", "2 3 lb chickens". Add these container units and an inch-size pattern (`lib/units.ts`, `lib/ingredients.ts`).
-- ★ "2 garlic cloves" (key "garlic clove") and "3 cloves garlic" (key "garlic") don't merge into one item. Normalize "<item> cloves" to the item.
-- ★ A bare count unit becomes an item for every count unit ("2 cans" → item "can", "4 slices", "1 pinch", "2 heads", "1 bunch"). Only "cloves" (and maybe "sticks") are real items, so limit the rule to a whitelist (`lib/ingredients.ts`).
-- ★ Phase 2 changed the item keys for "bay leaves", "molasses", "grits" and "…halves". Items stored under the old keys won't match new ones. Re-normalize stored items once before phase 3 if any real data exists.
 - Scaled counts don't re-pluralize ("1 potatoes", "2 egg (large)") and can show fractions ("5 ¼ eggs").
 - Litres are labelled lowercase "l".
 - Scaled ranges use only the upper number.
@@ -77,6 +74,23 @@ Known issues and deferred work. Items marked ★ block a later phase.
 
 - The importer doesn't decode `&ntilde;` and most other named HTML entities: an imported step reads "jalape&ntilde;o". Decode the full HTML5 named-entity set, or at least accented Latin letters (`lib/import.ts`), and backfill already-imported recipes.
 - The importer only reads JSON-LD. Pages that mark recipes up with schema.org Microdata (`itemprop="recipeIngredient"`) import only a title. Add a Microdata fallback (`lib/import.ts`).
+
+**Grocery list**
+- Count lines don't pluralize the item name ("4 egg" when the item was first saved as "egg"). This is the same issue as the scaler's re-pluralization item under Parser and display.
+- `pnpm db:reparse` side effects:
+  - marks keyed by an item whose key changed are orphaned, so those lines reappear unchecked;
+  - a recipe edited while the script runs can be overwritten;
+  - the final unused-item delete can race a concurrent save.
+
+  ★ Before phase 4, extend its "unused item" check to inventory, price records and `plan_entries.deducted`, or retire the script (`db/queries/maintenance.ts`).
+- "Unhide" and "Hide" accept any well-formed key and upsert an inert mark for the caller's own account. It's harmless, but could reuse `checkGroceryLine`'s on-list check.
+- The Hide and Remove controls are about 20 px tall, below the 24 px minimum target size (WCAG 2.5.8). After the plan grows, two identical "Hide flour" buttons appear.
+- If an amount-less line ("salt to taste") is checked and a recipe with "1 tsp salt" is planned later, the mark covers the new amount with no need line. That's arguably right, but it should get a unit test so the behavior is intentional.
+
+- Checking an item off and then reloading within a second can lose the check, because the tick is optimistic and the save is cut off. Phase 3b's offline queue fixes this by storing check-offs locally first (`app/(app)/list/grocery-lines.tsx`).
+- Check-offs need JavaScript. Without it the checkboxes do nothing. They could become form submissions for progressive enhancement.
+- Checking an item off records the whole shortfall, so you can't type the amount you actually bought (spec §5: "the quantity can be edited before confirming"). Add a quantity editor, which matters once inventory exists (phase 4).
+- "1 jar tomatillo salsa" and other prepared foods fall into Other because `lib/sections.ts` has no keywords for them. Grow the keyword map, or let a user set an item's section (phase 5 adds store sections).
 
 **Meal plan**
 - Concurrent adds (two tabs) can give two entries the same position. "Move down" can then do nothing, and the order between them is undefined. Add `id` as a tiebreak in `listWeek`, and lock or renumber the day's rows when adding or moving (`db/queries/plan.ts`).

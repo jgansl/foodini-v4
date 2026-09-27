@@ -19,6 +19,11 @@ const UNITS: Record<string, UnitDef> = {
   clove: { kind: "count", abbreviation: false, aliases: ["clove", "cloves"] },
   can: { kind: "count", abbreviation: false, aliases: ["can", "cans", "tin", "tins"] },
   jar: { kind: "count", abbreviation: false, aliases: ["jar", "jars"] },
+  bag: { kind: "count", abbreviation: false, aliases: ["bag", "bags"] },
+  bottle: { kind: "count", abbreviation: false, aliases: ["bottle", "bottles"] },
+  box: { kind: "count", abbreviation: false, aliases: ["box", "boxes"] },
+  carton: { kind: "count", abbreviation: false, aliases: ["carton", "cartons"] },
+  tub: { kind: "count", abbreviation: false, aliases: ["tub", "tubs"] },
   package: { kind: "count", abbreviation: false, aliases: ["package", "packages", "pkg", "pkgs", "packet", "packets"] },
   bunch: { kind: "count", abbreviation: false, aliases: ["bunch", "bunches"] },
   head: { kind: "count", abbreviation: false, aliases: ["head", "heads"] },
@@ -37,6 +42,7 @@ for (const [canonical, def] of Object.entries(UNITS)) {
 }
 
 const stripDot = (token: string) => token.replace(/\.$/, "");
+const TOLERANCE = 0.02;
 
 /** Reads a unit from the start of `tokens`. Two-word units ("fl oz") win over one-word ones. */
 export function matchUnit(tokens: string[]): { unit: string; consumed: number } | null {
@@ -59,7 +65,8 @@ export function unitKind(unit: string): UnitKind {
 
 export function unitLabel(unit: string, quantity: number): string {
   const def = UNITS[unit];
-  if (!def || def.abbreviation || quantity <= 1) return unit;
+  // Same tolerance as formatQuantity: 1.0000001 (float error) and 1.01 both display as "1".
+  if (!def || def.abbreviation || quantity < 1 + TOLERANCE) return unit;
   return /(ch|sh|s|x)$/.test(unit) ? `${unit}es` : `${unit}s`;
 }
 
@@ -74,7 +81,6 @@ const FRACTIONS: [number, string][] = [
   [3 / 4, "¾"],
   [7 / 8, "⅞"],
 ];
-const TOLERANCE = 0.02;
 
 /** Formats a quantity for cooks: common fractions as glyphs, anything else to two decimals. */
 export function formatQuantity(n: number): string {
@@ -87,4 +93,50 @@ export function formatQuantity(n: number): string {
     if (Math.abs(fraction - value) < TOLERANCE) return whole > 0 ? `${whole} ${glyph}` : glyph;
   }
   return String(Math.round(n * 100) / 100);
+}
+
+export type UnitSystem = "us" | "metric";
+
+// Millilitres per volume unit and grams per weight unit.
+const TO_BASE: Record<string, number> = {
+  tsp: 4.92892, tbsp: 14.7868, cup: 236.588, "fl oz": 29.5735, pint: 473.176, quart: 946.353, gallon: 3785.41,
+  ml: 1, l: 1000, g: 1, kg: 1000, oz: 28.3495, lb: 453.592,
+};
+const METRIC_UNITS = new Set(["ml", "l", "g", "kg"]);
+
+/** Converts to a base amount: ml for volume, g for weight; each count unit stays its own unit. */
+export function toBase(quantity: number, unit: string | null): { unitKey: string; amount: number; system: UnitSystem | null } {
+  if (unit !== null && TO_BASE[unit] !== undefined) {
+    return { unitKey: unitKind(unit), amount: quantity * TO_BASE[unit], system: METRIC_UNITS.has(unit) ? "metric" : "us" };
+  }
+  return { unitKey: `count:${unit ?? "each"}`, amount: quantity, system: null };
+}
+
+export function unitKeyForKind(kind: UnitKind): string {
+  return kind === "count" ? "count:each" : kind;
+}
+
+const roundMetric = (n: number) => (n >= 10 ? Math.round(n) : Math.round(n * 10) / 10);
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+function show(quantity: number, unit: string | null, metric: boolean): string {
+  const number = metric ? String(quantity) : formatQuantity(quantity);
+  return unit ? `${number} ${unitLabel(unit, quantity)}` : number;
+}
+
+/** A readable amount for a base amount: 48 tsp → "1 cup", 1500 ml → "1.5 l". */
+export function formatAmount(unitKey: string, amount: number, system: UnitSystem | null): string {
+  if (unitKey === "volume") {
+    if (system === "metric") return amount < 1000 ? show(roundMetric(amount), "ml", true) : show(round2(amount / 1000), "l", true);
+    if (amount < TO_BASE.tbsp * 0.99) return show(amount / TO_BASE.tsp, "tsp", false);
+    if (amount < (TO_BASE.cup / 4) * 0.99) return show(amount / TO_BASE.tbsp, "tbsp", false);
+    return show(amount / TO_BASE.cup, "cup", false);
+  }
+  if (unitKey === "weight") {
+    if (system === "metric") return amount < 1000 ? show(roundMetric(amount), "g", true) : show(round2(amount / 1000), "kg", true);
+    if (amount < TO_BASE.lb * 0.99) return show(amount / TO_BASE.oz, "oz", false);
+    return show(amount / TO_BASE.lb, "lb", false);
+  }
+  const unit = unitKey.slice("count:".length);
+  return show(amount, unit === "each" ? null : unit, false);
 }

@@ -65,6 +65,19 @@ describe("row-level security", () => {
     expect(error).not.toBeNull();
   });
 
+  it("hides grocery marks and extras from other users", async () => {
+    expect((await aliceDb.from("grocery_marks").insert({ user_id: alice.id, week_start: "2026-09-28", key: "raw:x", checked: true })).error).toBeNull();
+    expect((await aliceDb.from("grocery_extras").insert({ user_id: alice.id, week_start: "2026-09-28", name: "paper towels" })).error).toBeNull();
+    expect((await bobDb.from("grocery_marks").select("key")).data).toEqual([]);
+    expect((await bobDb.from("grocery_extras").select("id")).data).toEqual([]);
+  });
+
+  it("refuses extras that point at another user's item", async () => {
+    const { data: item } = await aliceDb.from("items").select("id").limit(1).single();
+    const { error } = await bobDb.from("grocery_extras").insert({ user_id: bob.id, week_start: "2026-09-28", name: "egg", item_id: item!.id });
+    expect(error).not.toBeNull();
+  });
+
   it("gives the anonymous role nothing", async () => {
     const { data } = await anonClient().from("recipes").select("id");
     expect(data ?? []).toEqual([]);
