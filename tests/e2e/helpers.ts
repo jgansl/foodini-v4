@@ -7,7 +7,7 @@ const admin = () =>
   });
 
 /** Creates a throwaway user and signs the page in through the real /auth/confirm route. */
-export async function signInAsNewUser(page: Page, domain = "example.test"): Promise<{ id: string }> {
+export async function signInAsNewUser(page: Page, domain = "example.test"): Promise<{ id: string; email: string }> {
   const email = `e2e-${crypto.randomUUID()}@${domain}`;
   const { data: created, error: createError } = await admin().auth.admin.createUser({ email, email_confirm: true });
   if (createError) throw createError;
@@ -15,7 +15,15 @@ export async function signInAsNewUser(page: Page, domain = "example.test"): Prom
   if (error) throw error;
   await page.goto(`/auth/confirm?token_hash=${data.properties.hashed_token}&type=email&next=/recipes`);
   if (domain === "example.test") await page.waitForURL("**/recipes");
-  return { id: created.user.id };
+  return { id: created.user.id, email };
+}
+
+/** Signs `page` in as an existing user (e.g. the same user on a second device). */
+export async function signInAs(page: Page, email: string): Promise<void> {
+  const { data, error } = await admin().auth.admin.generateLink({ type: "magiclink", email });
+  if (error) throw error;
+  await page.goto(`/auth/confirm?token_hash=${data.properties.hashed_token}&type=email&next=/recipes`);
+  await page.waitForURL("**/recipes");
 }
 
 export async function deleteUser(id: string): Promise<void> {
