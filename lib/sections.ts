@@ -21,12 +21,12 @@ const KEYWORDS: [Section, string[]][] = [
   ["spices", [
     "salt", "black pepper", "pepper flake", "peppercorn", "cumin", "paprika", "cinnamon", "nutmeg", "oregano",
     "dried", "chili powder", "garlic powder", "onion powder", "curry powder", "turmeric", "coriander",
-    "cardamom", "allspice", "bay leaf", "cayenne", "vanilla", "vanilla extract", "spice", "seasoning",
+    "cardamom", "allspice", "clove", "bay leaf", "cayenne", "vanilla", "vanilla extract", "spice", "seasoning",
   ]],
   ["pantry", [
     "flour", "sugar", "rice", "pasta", "spaghetti", "noodle", "oat", "bread crumb", "breadcrumb", "panko",
     "broth", "stock", "oil", "vinegar", "soy sauce", "sauce", "ketchup", "mustard", "mayonnaise", "honey",
-    "syrup", "baking soda", "baking powder", "yeast", "cornstarch", "bean", "lentil", "chickpea", "canned",
+    "syrup", "molasses", "baking soda", "baking powder", "yeast", "cornstarch", "bean", "lentil", "chickpea", "canned",
     "tomato paste", "coconut milk", "peanut butter", "nut", "almond", "walnut", "pecan", "raisin",
     "chocolate", "cocoa", "jam", "cracker", "cereal", "quinoa", "couscous",
   ]],
@@ -40,7 +40,7 @@ const KEYWORDS: [Section, string[]][] = [
   ]],
   ["bakery", ["bread", "bun", "roll", "tortilla", "pita", "bagel", "baguette", "naan", "croissant"]],
   ["produce", [
-    "onion", "garlic", "tomato", "potato", "sweet potato", "carrot", "celery", "lettuce", "spinach", "kale",
+    "onion", "garlic", "garlic clove", "tomato", "potato", "sweet potato", "carrot", "celery", "lettuce", "spinach", "kale",
     "pepper", "bell pepper", "jalapeno", "cucumber", "zucchini", "squash", "mushroom", "broccoli",
     "cauliflower", "cabbage", "lemon", "lime", "orange", "apple", "banana", "berry", "strawberry",
     "blueberry", "avocado", "ginger", "cilantro", "parsley", "basil", "mint", "thyme", "rosemary",

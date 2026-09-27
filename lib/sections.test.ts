@@ -21,6 +21,10 @@ describe("sectionFor", () => {
     ["red pepper flakes", "spices"],
     ["baguette", "bakery"],
     ["dry white wine", "beverages"],
+    ["bay leaves", "spices"],
+    ["whole cloves", "spices"],
+    ["garlic cloves", "produce"],
+    ["molasses", "pantry"],
     ["mystery ingredient", "other"],
   ])("puts %j in %s", (name, section) => {
     expect(sectionFor(name)).toBe(section);

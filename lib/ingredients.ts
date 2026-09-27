@@ -1,4 +1,4 @@
-import { formatQuantity, matchUnit, unitLabel } from "./units";
+import { formatQuantity, matchUnit, unitKind, unitLabel } from "./units";
 
 export type ParsedIngredient = {
   raw: string;
@@ -20,6 +20,8 @@ const NUMBER = String.raw`\d+(?:\.\d+)?(?:\s+\d+\/\d+)?|\d+\/\d+`;
 const QUANTITY = new RegExp(String.raw`^(${NUMBER})(?:\s*(?:-|–|—|to)\s*(${NUMBER}))?(?=\s|[a-z]|$)\s*`, "i");
 const TO_TASTE = /[,\s]*\bto taste\b\.?$/i;
 const SIZE_WORDS = new Set(["small", "medium", "large", "extra-large", "big"]);
+// A package size before a container unit: "14-ounce cans", "400g tin", "28 oz can".
+const CONTAINER_SIZE = /^(\d+(?:\.\d+)?\s?-?\s?(?:ounces?|oz|grams?|g|kg|ml|l|lbs?|pounds?))\.?\s+(?=\S)/i;
 
 function expandUnicodeFractions(s: string): string {
   return s
@@ -65,12 +67,29 @@ export function parseIngredient(raw: string): ParsedIngredient {
   }
 
   let unit: string | null = null;
+  let unitWord: string | null = null;
+  let containerNote: string | null = null;
   if (quantity !== null) {
-    const tokens = rest.split(" ");
-    const match = matchUnit(tokens);
-    if (match) {
-      unit = match.unit;
-      rest = tokens.slice(match.consumed).join(" ");
+    rest = rest.replace(/^x\s+/i, "");
+    const size = CONTAINER_SIZE.exec(rest);
+    if (size) {
+      const tokens = rest.slice(size[0].length).split(" ");
+      const container = matchUnit(tokens);
+      if (container && unitKind(container.unit) === "count") {
+        containerNote = size[1].replace(/\s+/g, "");
+        unit = container.unit;
+        unitWord = tokens.slice(0, container.consumed).join(" ");
+        rest = tokens.slice(container.consumed).join(" ");
+      }
+    }
+    if (unit === null) {
+      const tokens = rest.split(" ");
+      const match = matchUnit(tokens);
+      if (match) {
+        unit = match.unit;
+        unitWord = tokens.slice(0, match.consumed).join(" ");
+        rest = tokens.slice(match.consumed).join(" ");
+      }
     }
   }
   rest = rest.replace(/^of\s+/i, "");
@@ -92,8 +111,13 @@ export function parseIngredient(raw: string): ParsedIngredient {
   let sizeNote: string | null = null;
   if (words.length > 1 && SIZE_WORDS.has(words[0].toLowerCase())) sizeNote = words.shift()!.toLowerCase();
 
-  const name = words.join(" ").toLowerCase() || null;
-  const notes = [sizeNote, ...parenNotes, commaNote, ...trailingNotes].filter((n): n is string => Boolean(n));
+  let name = words.join(" ").toLowerCase() || null;
+  // "2 cloves" means the spice, not two cloves of something: a count unit with nothing after it is the item.
+  if (name === null && unit !== null && unitWord !== null && unitKind(unit) === "count") {
+    name = unitWord.toLowerCase();
+    unit = null;
+  }
+  const notes = [containerNote, sizeNote, ...parenNotes, commaNote, ...trailingNotes].filter((n): n is string => Boolean(n));
   return { raw: text, quantity, unit, name, note: notes.length ? notes.join(", ") : null };
 }
 
@@ -105,8 +129,12 @@ export function formatIngredient(p: ParsedIngredient, factor = 1): string {
   return p.note ? `${main} (${p.note})` : main;
 }
 
+// Words that end in "s" but are already singular.
+const INVARIANT = new Set(["molasses", "couscous", "hummus", "asparagus", "citrus", "swiss", "grits", "series", "species"]);
+
 function singularize(word: string): string {
-  if (word.length <= 3) return word;
+  if (word.length <= 3 || INVARIANT.has(word)) return word;
+  if (/(eaves|oaves|alves)$/.test(word)) return `${word.slice(0, -3)}f`;
   if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
   if (/(ches|shes|xes|oes|sses)$/.test(word)) return word.slice(0, -2);
   if (word.endsWith("s") && !/(ss|us|is)$/.test(word)) return word.slice(0, -1);
