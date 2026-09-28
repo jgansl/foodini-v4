@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, formatDay, formatWeekRange, isIsoDate, mondayOf, resolveWeek, todayIn, weekDays } from "./dates";
+import { addDays, formatDay, formatWeekRange, isIsoDate, mondayOf, resolveWeek, timeZoneChangesToday, todayIn, weekDays } from "./dates";
 
 describe("isIsoDate", () => {
   it.each([
@@ -69,3 +69,18 @@ describe("labels", () => {
     expect(formatWeekRange("2026-12-28")).toBe("Dec 28 – Jan 3");
   });
 });
+
+describe("timeZoneChangesToday", () => {
+  const instant = new Date("2026-09-28T01:48:00Z"); // Sunday evening in Los Angeles, Monday in UTC
+
+  it("is true when the page was rendered for a different date than the browser's", () => {
+    expect(timeZoneChangesToday("America/Los_Angeles", null, instant)).toBe(true);
+    expect(timeZoneChangesToday("Asia/Tokyo", "America/Los_Angeles", instant)).toBe(true);
+  });
+
+  it("is false when both zones give the same date", () => {
+    expect(timeZoneChangesToday("America/Los_Angeles", "America/Los_Angeles", instant)).toBe(false);
+    expect(timeZoneChangesToday("Europe/London", null, instant)).toBe(false);
+  });
+});
+
