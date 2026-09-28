@@ -9,6 +9,9 @@ import { isLineKey, isListWeek, targetOf, type ListChange, type SyncResult, type
 import { resolveItems } from "./items";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// `updated_at` for rows no device has checked or unchecked yet: older than any device time, so last-write-wins
+// compares device clocks only with each other, never with the server's clock.
+const SERVER_WRITTEN = new Date(0);
 
 export async function loadWeekIngredients(userId: string, weekStart: string): Promise<GroceryIngredient[]> {
   return db
@@ -78,11 +81,12 @@ async function upsertMark(
   patch: Partial<Pick<GroceryMark, "checked" | "checkedQty" | "hidden">>,
   at?: Date,
 ) {
-  // `updated_at` tracks the checked state only, so hiding a line doesn't make a queued check-off stale.
+  // `updated_at` holds device times from check-offs only. A row created by Hide starts at the epoch, so a
+  // queued check-off (stamped by a device clock that may run behind the server's) is never stale against it.
   const stamp = at ? { updatedAt: at } : {};
   await db
     .insert(groceryMarks)
-    .values({ userId, weekStart, key, ...patch, ...stamp })
+    .values({ userId, weekStart, key, ...patch, updatedAt: at ?? SERVER_WRITTEN })
     .onConflictDoUpdate({ target: [groceryMarks.userId, groceryMarks.weekStart, groceryMarks.key], set: { ...patch, ...stamp } });
 }
 
@@ -117,6 +121,8 @@ export async function addGroceryExtra(userId: string, weekStart: string, text: s
         weekStart,
         itemId: parsed.name ? (itemIds.get(normalizeItemName(parsed.name)) ?? null) : null,
         name: parsed.name ?? parsed.raw,
+        // No device has changed its checked state yet (see SERVER_WRITTEN).
+        updatedAt: SERVER_WRITTEN,
         quantity: parsed.name ? parsed.quantity : null,
         unit: parsed.name ? parsed.unit : null,
       })

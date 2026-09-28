@@ -19,6 +19,8 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
   const [message, setMessage] = useState<string | null>(null);
   const queueRef = useRef<ListChange[]>([]);
   const flushing = useRef(false);
+  // Lets a finished sync start the next one without `flush` referring to itself.
+  const flushAgain = useRef<() => void>(() => {});
 
   // Show the newest copy of the list: this render from the server, or a newer one saved on the device
   // (a page served by the service worker carries the list from when it was cached).
@@ -52,6 +54,7 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
     if (flushing.current || !navigator.onLine || queueRef.current.length === 0) return;
     flushing.current = true;
     const batch = queueRef.current;
+    let synced = false;
     try {
       const response = await fetch("/api/grocery/sync", {
         method: "POST",
@@ -73,13 +76,20 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
       // Keep showing the synced state until the server's re-render arrives.
       setBase((b) => ({ ...b, sections: applyPending(b.sections, batch, week) }));
       await storeQueue(removeSynced(queueRef.current, batch));
+      synced = true;
       router.refresh();
     } catch {
       // Offline or unreachable: keep the queue and try again on the next online, focus or load.
     } finally {
       flushing.current = false;
+      // Taps made while this batch was in flight: send them now (only after a success, so failures don't loop).
+      if (synced && queueRef.current.length > 0) flushAgain.current();
     }
   }, [router, storeQueue, week]);
+
+  useEffect(() => {
+    flushAgain.current = () => void flush();
+  }, [flush]);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,6 +100,8 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
       setQueue(saved);
       void flush();
     })();
+    // A page reached by soft navigation was never cached as a document: ask the service worker to save it.
+    if (navigator.onLine) navigator.serviceWorker?.controller?.postMessage({ type: "cache-list" });
     const retry = () => void flush();
     window.addEventListener("online", retry);
     window.addEventListener("focus", retry);
@@ -100,9 +112,9 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
     };
   }, [userId, flush]);
 
-  // `eventTime` is the input event's timeStamp; with timeOrigin it gives the tap's wall-clock time.
-  async function toggle(line: GroceryLine, eventTime: number) {
-    const at = Math.round(performance.timeOrigin + eventTime);
+  // `at` is the wall-clock time of the tap (Date.now() in the handler). Not the event's timeStamp:
+  // that runs on a monotonic clock that stops while a phone sleeps, so it drifts behind real time.
+  async function toggle(line: GroceryLine, at: number) {
     const change: ListChange = line.extraId
       ? { kind: "extra", week, id: line.extraId, checked: !line.checked, at }
       : { kind: "line", week, key: line.key, checked: !line.checked, at };
@@ -145,7 +157,7 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
                   id={`line-${line.id}`}
                   type="checkbox"
                   checked={line.checked}
-                  onChange={(e) => void toggle(line, e.timeStamp)}
+                  onChange={() => void toggle(line, Date.now())}
                   className="size-5 shrink-0 accent-emerald-700"
                 />
                 <label htmlFor={`line-${line.id}`} className="min-w-0 flex-1">

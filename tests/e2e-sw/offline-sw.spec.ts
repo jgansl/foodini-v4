@@ -38,6 +38,29 @@ test("the list opens with no signal after an online visit", async ({ page, conte
   }
 });
 
+test("the list opens offline after reaching it only through the List tab", async ({ page, context }) => {
+  const { id } = await signInAsNewUser(page);
+  try {
+    const url = await createRecipeViaUi(page, "Tab soup", 2, "2 cups stock");
+    await page.goto(url);
+    await page.getByRole("button", { name: "Add to plan" }).click();
+    await expect(page).toHaveURL(/\/plan\?week=/);
+    await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true);
+    // Soft navigation only: never a full page load of /list.
+    await page.getByRole("link", { name: "List", exact: true }).click();
+    await expect(line(page, "2 cups stock")).toBeVisible();
+    await expect.poll(() => page.evaluate(async () => Boolean(await caches.match("/list")))).toBe(true);
+
+    await context.setOffline(true);
+    const response = await page.goto("/list");
+    expect(response?.fromServiceWorker()).toBe(true);
+    await line(page, "2 cups stock").getByRole("checkbox").check();
+    await expect(page.getByText("1 change waiting to sync")).toBeVisible();
+  } finally {
+    await deleteUser(id);
+  }
+});
+
 test("signing out clears lists saved on the device", async ({ page }) => {
   const { id } = await signInAsNewUser(page);
   try {

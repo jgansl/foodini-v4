@@ -17,6 +17,9 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 - A check-off could be lost when reloading within a second of checking.
 - On a device's first visit, a page could show the wrong week, for example next week with your meals missing, when the local date differed from UTC's. This happens in the evening in the Americas. The server now tells the page which time zone it used, and the page refreshes if that gives a different date.
 - A malformed `tz` cookie no longer breaks pages.
+- The list opens offline even if you've only ever reached it through the List tab.
+- Rapid check-offs all sync; the last tap no longer waits for focus.
+- A check-off can't be undone by a phone clock that fell behind while it slept, or by timestamps the server wrote.
 
 #### Changed
 - Signing out clears lists saved on the device.

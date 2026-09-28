@@ -51,6 +51,15 @@ test.describe("offline grocery list", () => {
     await expect(page.getByText(/· 1 checked/)).toBeVisible();
   });
 
+  test("rapid check-offs all sync without waiting for focus", async ({ page }) => {
+    await planSoup(page);
+    await page.goto("/list");
+    await line(page, "2 cups stock").getByRole("checkbox").check();
+    await line(page, "1 onion").getByRole("checkbox").check();
+    await expect(page.getByText(/· 2 checked/)).toBeVisible();
+    await expect(page.getByText(/waiting to sync/)).toHaveCount(0);
+  });
+
   test("a newer change from another device wins", async ({ page, context, browser }) => {
     await planSoup(page);
     await page.goto("/list");

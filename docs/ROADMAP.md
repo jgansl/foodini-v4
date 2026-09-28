@@ -95,7 +95,18 @@ Known issues and deferred work. Items marked ★ block a later phase.
 - A cold offline open of `/list` shows the last list page cached on this device. If a different user signed in without the previous one signing out, that page belongs to the previous user until the device is back online (`public/sw.js`).
 - Only check-offs work offline. Hiding, removing and adding items need a connection.
 - A `grocery_marks` row first created by Hide gets the current time as `updated_at`, so an older offline check-off of that line is treated as stale.
-- The list opens offline only after one online visit under the service worker's control, and other pages still need a connection.
+
+- A sync request with one invalid change is rejected whole (400), and the client drops the batch. Examples: an `at` more than 5 minutes ahead because of a fast phone clock, a change queued over 30 days ago, or more than 200 changes. Validate per change instead, using the existing `invalid` status, and clamp a future `at` to the server's time (`lib/offline-queue.ts`).
+- Last-write-wins reads `updated_at` and then writes, outside a transaction, so two concurrent syncs can both pass the check. Move the check into the write: `onConflictDoUpdate(… setWhere: updated_at <= excluded.updated_at)`, and `where updated_at <= at` for extras (`db/queries/grocery.ts`).
+- The on-device queue can lose a change: two tabs rewrite the whole queue from memory, and rapid taps open separate IndexedDB connections whose writes can commit out of order. Use one cached connection with ordered writes, or one record per target (`app/(app)/list/offline-store.ts`).
+- Signing out deletes changes that haven't synced yet, without warning. Try a sync first, or warn (`components/clear-offline-data.tsx`).
+- The queue syncs only while the list is open with lines on it. Changes queued elsewhere wait until you return to a non-empty list.
+- Service-worker caching:
+  - `/list?week=…&hidden=1` overwrites the `/list` fallback, so a cold open shows whichever week was viewed last;
+  - visited week URLs are never pruned;
+  - old static chunks pile up until `VERSION` is bumped by hand (`public/sw.js`).
+- A batch that keeps getting a 5xx retries forever with no message, and a failed IndexedDB write silently leaves the queue in memory only.
+- The sync route accepts any Content-Type and has no Origin check. Supabase's `SameSite=Lax` cookies block cross-site use today; requiring `application/json` and a same-origin `Origin` would be cheap hardening (`app/api/grocery/sync/route.ts`).
 
 **Meal plan**
 - Concurrent adds (two tabs) can give two entries the same position. "Move down" can then do nothing, and the order between them is undefined. Add `id` as a tiebreak in `listWeek`, and lock or renumber the day's rows when adding or moving (`db/queries/plan.ts`).

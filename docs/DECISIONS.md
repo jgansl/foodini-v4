@@ -120,14 +120,15 @@ Check-offs go to an IndexedDB queue and a JSON sync endpoint (`POST /api/grocery
 **Cost:** more code: a queue, a store, an endpoint and a service worker.
 
 ### D23. Offline sync is last-write-wins on the device's clock, and the server still computes amounts
-A change carries `{ kind, week, key or id, checked, at }` and is skipped if its `at` is older than the row's `updated_at`. The client never sends a quantity: the server records the line's shortfall at sync time. The timestamp is the tap's time (`performance.timeOrigin + event.timeStamp`).
+A change carries `{ kind, week, key or id, checked, at }` and is skipped if its `at` is older than the row's `updated_at`. The client never sends a quantity: the server records the line's shortfall at sync time. The timestamp is `Date.now()` in the tap handler. An event's `timeStamp` runs on a monotonic clock that stops while a phone sleeps, so it falls behind real time. Rows no device has changed yet (new extras, and marks created by Hide) have `updated_at` at the epoch, so device clocks are compared only with each other.
 **Why:** spec §7's conflict rule, and D18's rule that amounts come from the server.
 **Cost:** devices with badly wrong clocks can win or lose unexpectedly (`at` is limited to the last 30 days and 5 minutes into the future). A plan changed while offline is reflected in the amount recorded at sync time.
 
 ### D24. The service worker caches only static assets and the /list page
 `/_next/static/*` is served cache-first, and `/list` navigations network-first. It's registered in production only and tested against a production build (`pnpm test:e2e:sw`).
 **Why:** the smallest service worker that meets spec §7, with no risk of serving stale pages elsewhere in the app.
-**Cost:** the list opens offline only after one online visit under the service worker's control, and other pages still need a connection.
+When the list opens, it asks the worker (`postMessage`) to fetch and cache `/list` along with the page's scripts and styles, so it works offline even when it was only ever reached through the List tab.
+**Cost:** the list opens offline only after the list has been opened once online while the worker is active. Other pages still need a connection.
 
 ### D25. CI checks lint, unit tests and the build; database suites run locally
 GitHub Actions runs `pnpm lint`, `pnpm test` and `pnpm build` on every push and pull request, with placeholder environment variables. The integration, e2e and service-worker suites need a Supabase stack and run locally for now.
