@@ -43,15 +43,32 @@ To start again: open Docker Desktop, run `pnpm exec supabase start`, then `pnpm 
 pnpm test        # unit tests (lib/)
 pnpm test:int    # database + row-level security (needs local Supabase)
 pnpm test:e2e    # Playwright (needs local Supabase; runs its own server on port 3100)
+pnpm test:e2e:sw # service worker, against a production build (slow; port 3200)
 ```
 
 ## Deploying
 
-1. Create a Supabase project. Set `DATABASE_URL` to its connection string (transaction pooler), then run `pnpm db:migrate`.
-2. In Auth → URL Configuration, set the Site URL to your domain and add `https://<your-domain>/**` to the redirect URLs.
-3. In Auth → Email Templates, set both **Magic Link** and **Confirm signup** to the body of `supabase/templates/magic-link.html`.
-4. After you have signed in once, turn off Auth → Sign In / Providers → **Allow new users to sign up**. The app also rejects sessions for addresses not in `ALLOWED_EMAILS`, but this stops strangers from creating accounts at all.
-5. On the host, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `DATABASE_URL`, `SITE_URL` and `ALLOWED_EMAILS`. Do not set `SUPABASE_SECRET_KEY` or `IMPORT_ALLOW_PRIVATE` in production.
+Foodini runs on any Next.js host; these steps assume **Vercel** plus a **hosted Supabase** project.
+
+1. **Supabase project.** Create one, then open **Connect** and copy two connection strings:
+   - **Session pooler** (port 5432): for migrations. The transaction pooler doesn't support the prepared statements migrations use.
+   - **Transaction pooler** (port 6543): for the running app (`db/index.ts` already disables prepared statements for it).
+2. **Migrate** (tables, row-level security and the photo bucket):
+   ```bash
+   DATABASE_URL="<session pooler URL>" pnpm db:migrate
+   ```
+3. **Auth → URL Configuration:** set the Site URL to your domain and add `https://<your-domain>/**` to the redirect URLs.
+4. **Auth → Email Templates:** set both **Magic Link** and **Confirm signup** to the body of `supabase/templates/magic-link.html`. Supabase's built-in email is heavily rate-limited, so configure custom SMTP (Resend, Postmark, …) for reliable sign-in links.
+5. **Host environment** (Vercel → Project → Settings → Environment Variables):
+   - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (Supabase → Settings → API)
+   - `DATABASE_URL`: the **transaction pooler** URL
+   - `SITE_URL`: `https://<your-domain>`
+   - `ALLOWED_EMAILS`: the addresses allowed to sign in
+
+   Do not set `SUPABASE_SECRET_KEY`, `IMPORT_ALLOW_PRIVATE` or `NEXT_DIST_DIR` in production.
+6. **Deploy,** sign in once, then turn off Auth → Sign In / Providers → **Allow new users to sign up**. The app also rejects sessions for addresses not in `ALLOWED_EMAILS`, but this stops strangers from creating accounts at all.
+
+After deploying, run later migrations the same way as step 2, before or alongside the deploy that needs them.
 
 ## License
 

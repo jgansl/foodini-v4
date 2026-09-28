@@ -4,6 +4,24 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+### Phase 3b, offline list
+
+#### Added
+- Check-offs are saved on the device first and synced when you're back online, on focus, or on load. The newest change wins between devices.
+- A "waiting to sync" badge and an offline notice.
+- A service worker, so `/list` opens with no signal after an online visit.
+- `pnpm test:e2e:sw`, which tests the service worker against a production build.
+- CI for lint, unit tests and the build.
+
+#### Fixed
+- A check-off could be lost when reloading within a second of checking.
+- On a device's first visit, a page could show the wrong week, for example next week with your meals missing, when the local date differed from UTC's. This happens in the evening in the Americas. The server now tells the page which time zone it used, and the page refreshes if that gives a different date.
+- A malformed `tz` cookie no longer breaks pages.
+
+#### Changed
+- Signing out clears lists saved on the device.
+- The README's deploy steps: migrations use Supabase's session pooler, the app uses the transaction pooler, and custom SMTP is recommended.
+
 ### Phase 3a, grocery list
 
 #### Added
