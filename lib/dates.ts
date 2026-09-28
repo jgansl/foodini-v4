@@ -68,3 +68,8 @@ export function formatDay(iso: string): string {
 export function formatWeekRange(weekStart: string): string {
   return `${monthDayFormat.format(toUtc(weekStart))} – ${monthDayFormat.format(toUtc(addDays(weekStart, 6)))}`;
 }
+
+/** Whether a page rendered for `serverTimeZone` (null = the UTC fallback) shows a different "today" than the browser's zone. */
+export function timeZoneChangesToday(browserTimeZone: string, serverTimeZone: string | null, now: Date = new Date()): boolean {
+  return todayIn(browserTimeZone, now) !== todayIn(serverTimeZone ?? undefined, now);
+}

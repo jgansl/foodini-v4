@@ -73,7 +73,7 @@ Every page renders per request.
 ### D13. Plan dates are calendar strings; "today" comes from the browser's time zone
 `plan_entries.date` is a Postgres `date` handled as `YYYY-MM-DD`, with all date math in UTC. The browser saves its IANA time zone in a `tz` cookie, and the server computes "today" in that zone, falling back to UTC.
 **Why:** a planned day is a calendar day, not an instant, and servers run in UTC.
-**Cost:** the first request before the cookie is set uses UTC. The page refreshes once, and only when that UTC date differs from the local one.
+**Cost:** a request sent before the cookie exists uses UTC. The server passes the time zone it actually rendered with to `<TimezoneCookie>`, which refreshes the page once if the browser's zone gives a different date. The first version compared against UTC only when it wrote the cookie, and missed requests that were already in flight; that was fixed in phase 3b.
 
 ### D14. Planned recipes can't be deleted silently
 The foreign key from `plan_entries.recipe_id` is `NO ACTION`, which blocks the delete but still lets a deleted user's rows cascade. `deleteRecipe` reports `{ status: "planned", count }` unless the caller asks to remove the plan entries, and the UI confirms with the count. The plan's row-level security policy also requires the recipe to belong to the same user.
@@ -113,4 +113,25 @@ A merged line is shown in metric if any contributing ingredient used a metric un
 `pnpm db:reparse` re-parses every stored ingredient line with the current parser and deletes items nothing uses. It runs through `tsx` with the `react-server` condition, so the `server-only` modules load.
 **Why:** parser fixes otherwise only apply to recipes saved afterwards.
 **Cost:** run it deliberately after parser changes. It rewrites `recipe_ingredients` rows, keeping their raw text and order. It orphans this week's grocery marks for items whose key changed. Its unused-item delete must learn about inventory and prices before phase 4.
+
+### D22. Our own offline queue, not Next's `experimental.useOffline`
+Check-offs go to an IndexedDB queue and a JSON sync endpoint (`POST /api/grocery/sync`), and a service worker serves `/list` when offline.
+**Why:** Next's flag retries failed navigations and Server Actions from memory only, so a reload loses them, and it's experimental. Spec §7 needs changes that survive reloads and a cold offline open.
+**Cost:** more code: a queue, a store, an endpoint and a service worker.
+
+### D23. Offline sync is last-write-wins on the device's clock, and the server still computes amounts
+A change carries `{ kind, week, key or id, checked, at }` and is skipped if its `at` is older than the row's `updated_at`. The client never sends a quantity: the server records the line's shortfall at sync time. The timestamp is `Date.now()` in the tap handler. An event's `timeStamp` runs on a monotonic clock that stops while a phone sleeps, so it falls behind real time. Rows no device has changed yet (new extras, and marks created by Hide) have `updated_at` at the epoch, so device clocks are compared only with each other.
+**Why:** spec §7's conflict rule, and D18's rule that amounts come from the server.
+**Cost:** devices with badly wrong clocks can win or lose unexpectedly (`at` is limited to the last 30 days and 5 minutes into the future). A plan changed while offline is reflected in the amount recorded at sync time.
+
+### D24. The service worker caches only static assets and the /list page
+`/_next/static/*` is served cache-first, and `/list` navigations network-first. It's registered in production only and tested against a production build (`pnpm test:e2e:sw`).
+**Why:** the smallest service worker that meets spec §7, with no risk of serving stale pages elsewhere in the app.
+When the list opens, it asks the worker (`postMessage`) to fetch and cache `/list` along with the page's scripts and styles, so it works offline even when it was only ever reached through the List tab.
+**Cost:** the list opens offline only after the list has been opened once online while the worker is active. Other pages still need a connection.
+
+### D25. CI checks lint, unit tests and the build; database suites run locally
+GitHub Actions runs `pnpm lint`, `pnpm test` and `pnpm build` on every push and pull request, with placeholder environment variables. The integration, e2e and service-worker suites need a Supabase stack and run locally for now.
+**Why:** fast, dependable feedback on every PR without secrets or a database in CI.
+**Cost:** database regressions are caught only by running the local suites; adding `supabase start` to CI is in the backlog.
 

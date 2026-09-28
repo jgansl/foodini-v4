@@ -52,7 +52,7 @@ export default async function ListPage(props: PageProps<"/list">) {
           </p>
         </div>
       ) : (
-        <GroceryLines week={week} sections={list.sections} />
+        <GroceryLines userId={user.id} week={week} sections={list.sections} generatedAt={new Date().toISOString()} />
       )}
 
       {list.hiddenCount > 0 && (

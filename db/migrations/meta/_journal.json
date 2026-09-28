@@ -43,6 +43,13 @@
       "when": 1790540378284,
       "tag": "0005_grocery_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790547884202,
+      "tag": "0006_grocery_extras_updated_at",
+      "breakpoints": true
     }
   ]
 }

@@ -27,6 +27,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   const { pathname, search } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   if (!data?.claims && !isPublic) {
+    // API callers (the offline sync) need a status code, not an HTML login page.
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "signed-out" }, { status: 401 });
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = `?next=${encodeURIComponent(pathname + search)}`;

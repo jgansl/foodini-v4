@@ -7,8 +7,8 @@ Foodini is built in five phases. Each is a usable release, and each gets its own
 | 1 | Foundation and recipe box | Sign-in, recipes, ingredient parsing, URL import, photos, servings scaler | In review ([jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1)) |
 | 2 | Meal plan | Monday–Sunday plan with any number of entries per day, labels, per-entry servings, mark cooked | In review ([jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2)) |
 | 3a | Grocery list | List generated from the plan (scaled, merged, readable units, grouped by section), instant check-offs, hide for the week, extras | In review |
-| 3b | Offline list | Saved list and queued check-offs in IndexedDB, then a service worker so `/list` opens with no signal (spec §7) | Next |
-| 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | Planned |
+| 3b | Offline list | Saved list and queued check-offs in IndexedDB, then a service worker so `/list` opens with no signal (spec §7) | In review |
+| 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | Next |
 | 5 | Stores and prices | Price log, cost estimates, the list split by store in each store's section order | Planned |
 
 ## Phase notes
@@ -87,17 +87,31 @@ Known issues and deferred work. Items marked ★ block a later phase.
 - The Hide and Remove controls are about 20 px tall, below the 24 px minimum target size (WCAG 2.5.8). After the plan grows, two identical "Hide flour" buttons appear.
 - If an amount-less line ("salt to taste") is checked and a recipe with "1 tsp salt" is planned later, the mark covers the new amount with no need line. That's arguably right, but it should get a unit test so the behavior is intentional.
 
-- Checking an item off and then reloading within a second can lose the check, because the tick is optimistic and the save is cut off. Phase 3b's offline queue fixes this by storing check-offs locally first (`app/(app)/list/grocery-lines.tsx`).
 - Check-offs need JavaScript. Without it the checkboxes do nothing. They could become form submissions for progressive enhancement.
 - Checking an item off records the whole shortfall, so you can't type the amount you actually bought (spec §5: "the quantity can be edited before confirming"). Add a quantity editor, which matters once inventory exists (phase 4).
 - "1 jar tomatillo salsa" and other prepared foods fall into Other because `lib/sections.ts` has no keywords for them. Grow the keyword map, or let a user set an item's section (phase 5 adds store sections).
+
+**Offline list**
+- A cold offline open of `/list` shows the last list page cached on this device. If a different user signed in without the previous one signing out, that page belongs to the previous user until the device is back online (`public/sw.js`).
+- Only check-offs work offline. Hiding, removing and adding items need a connection.
+- A `grocery_marks` row first created by Hide gets the current time as `updated_at`, so an older offline check-off of that line is treated as stale.
+
+- A sync request with one invalid change is rejected whole (400), and the client drops the batch. Examples: an `at` more than 5 minutes ahead because of a fast phone clock, a change queued over 30 days ago, or more than 200 changes. Validate per change instead, using the existing `invalid` status, and clamp a future `at` to the server's time (`lib/offline-queue.ts`).
+- Last-write-wins reads `updated_at` and then writes, outside a transaction, so two concurrent syncs can both pass the check. Move the check into the write: `onConflictDoUpdate(… setWhere: updated_at <= excluded.updated_at)`, and `where updated_at <= at` for extras (`db/queries/grocery.ts`).
+- The on-device queue can lose a change: two tabs rewrite the whole queue from memory, and rapid taps open separate IndexedDB connections whose writes can commit out of order. Use one cached connection with ordered writes, or one record per target (`app/(app)/list/offline-store.ts`).
+- Signing out deletes changes that haven't synced yet, without warning. Try a sync first, or warn (`components/clear-offline-data.tsx`).
+- The queue syncs only while the list is open with lines on it. Changes queued elsewhere wait until you return to a non-empty list.
+- Service-worker caching:
+  - `/list?week=…&hidden=1` overwrites the `/list` fallback, so a cold open shows whichever week was viewed last;
+  - visited week URLs are never pruned;
+  - old static chunks pile up until `VERSION` is bumped by hand (`public/sw.js`).
+- A batch that keeps getting a 5xx retries forever with no message, and a failed IndexedDB write silently leaves the queue in memory only.
+- The sync route accepts any Content-Type and has no Origin check. Supabase's `SameSite=Lax` cookies block cross-site use today; requiring `application/json` and a same-origin `Origin` would be cheap hardening (`app/api/grocery/sync/route.ts`).
 
 **Meal plan**
 - Concurrent adds (two tabs) can give two entries the same position. "Move down" can then do nothing, and the order between them is undefined. Add `id` as a tiebreak in `listWeek`, and lock or renumber the day's rows when adding or moving (`db/queries/plan.ts`).
 - A plan entry inserted between `deleteRecipe`'s count and its delete raises a foreign-key error (500). Lock the recipe row (`SELECT … FOR UPDATE`) in both transactions (`db/queries/recipes.ts`, `db/queries/plan.ts`).
 - The entry editor says "Saved." for an entry that no longer exists (`updatePlanEntryAction` ignores the result).
-- After travelling, the time-zone cookie compares the new zone's date with UTC's instead of the old zone's, so one render can show a stale "today" (`components/timezone-cookie.tsx`).
-- A malformed `tz` cookie (for example `%E0`) makes `/plan` and recipe pages return a 500, because `decodeURIComponent` sits outside the try (`server/today.ts`).
 - "Planned N times" on a recipe page counts cooked and past entries, and links to the current week, where they may not be.
 - Delete and Remove confirmations need JavaScript. Before the page hydrates, the forms submit without asking (`components/confirm-form.tsx`).
 - The `?planned=` notice on a recipe page stays on reload and can be triggered by any link.
@@ -126,5 +140,4 @@ Known issues and deferred work. Items marked ★ block a later phase.
   - Only content you own, or have permission to use, may be published.
 
 **Infrastructure**
-- The time-zone cookie's refresh (it runs only when the local date differs from UTC's) isn't covered by the end-to-end tests, which run while Los Angeles and UTC usually share a date. Pin the browser clock in a test, for example with Playwright's `page.clock`, to cover it (`components/timezone-cookie.tsx`).
-- No CI yet. Lint, unit tests and the build could run on GitHub Actions; integration and end-to-end tests need Supabase in Docker.
+- CI runs lint, unit tests and the build (`.github/workflows/ci.yml`). The integration, end-to-end and service-worker suites need a Supabase stack in CI (`supabase start` in the runner) and aren't wired up yet.

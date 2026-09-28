@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { sqlClient } from "@/db";
 import {
   addGroceryExtra,
+  applyGroceryChanges,
   checkGroceryLine,
   getGroceryList,
   removeGroceryExtra,
@@ -92,6 +93,70 @@ describe("grocery queries", () => {
     expect((await getGroceryList(u.id, "2026-10-05")).hiddenCount).toBe(0);
     await setGroceryLineHidden(u.id, WEEK, butter.key, false);
     expect(await labels(u.id)).toEqual(["butter", "2 slices bread"]);
+  });
+
+  it("applies synced changes with the device's timestamp", async () => {
+    const u = await newUser();
+    const r = await createRecipe(u.id, recipe("Soup", ["2 cups stock"]));
+    await plan(u.id, r);
+    const [lineOnList] = (await getGroceryList(u.id, WEEK)).sections[0].lines;
+    const extraId = (await addGroceryExtra(u.id, WEEK, "paper towels"))!;
+    const now = Date.now();
+    const results = await applyGroceryChanges(u.id, [
+      { kind: "line", week: WEEK, key: lineOnList.key, checked: true, at: now },
+      { kind: "extra", week: WEEK, id: extraId, checked: true, at: now },
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["ok", "ok"]);
+    expect(await labels(u.id)).toEqual(["✓ 2 cups stock", "✓ paper towels"]);
+  });
+
+  it("ignores changes older than the row", async () => {
+    const u = await newUser();
+    const r = await createRecipe(u.id, recipe("Soup", ["2 cups stock"]));
+    await plan(u.id, r);
+    const [lineOnList] = (await getGroceryList(u.id, WEEK)).sections[0].lines;
+    const extraId = (await addGroceryExtra(u.id, WEEK, "paper towels"))!;
+    const now = Date.now();
+    await applyGroceryChanges(u.id, [
+      { kind: "line", week: WEEK, key: lineOnList.key, checked: true, at: now },
+      { kind: "extra", week: WEEK, id: extraId, checked: true, at: now },
+    ]);
+    const older = await applyGroceryChanges(u.id, [
+      { kind: "line", week: WEEK, key: lineOnList.key, checked: false, at: now - 60_000 },
+      { kind: "extra", week: WEEK, id: extraId, checked: false, at: now - 60_000 },
+    ]);
+    expect(older.map((r) => r.status)).toEqual(["stale", "stale"]);
+    expect(await labels(u.id)).toEqual(["✓ 2 cups stock", "✓ paper towels"]);
+  });
+
+  it("lets a device change win over timestamps the server wrote, even with a slow device clock", async () => {
+    const u = await newUser();
+    const r = await createRecipe(u.id, recipe("Soup", ["2 cups stock"]));
+    await plan(u.id, r);
+    const [lineOnList] = (await getGroceryList(u.id, WEEK)).sections[0].lines;
+    const extraId = (await addGroceryExtra(u.id, WEEK, "bananas"))!;
+    await setGroceryLineHidden(u.id, WEEK, lineOnList.key, true);
+    await setGroceryLineHidden(u.id, WEEK, lineOnList.key, false);
+    const behind = Date.now() - 10 * 60_000;
+    const results = await applyGroceryChanges(u.id, [
+      { kind: "line", week: WEEK, key: lineOnList.key, checked: true, at: behind },
+      { kind: "extra", week: WEEK, id: extraId, checked: true, at: behind },
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["ok", "ok"]);
+    expect(await labels(u.id)).toEqual(["✓ bananas", "✓ 2 cups stock"]);
+  });
+
+  it("marks invalid changes: bad week or key, and another user's extra", async () => {
+    const [u, other] = await Promise.all([newUser(), newUser()]);
+    const theirs = (await addGroceryExtra(other.id, WEEK, "towels"))!;
+    const now = Date.now();
+    const results = await applyGroceryChanges(u.id, [
+      { kind: "line", week: "2026-09-29", key: "item:x:volume", checked: true, at: now },
+      { kind: "line", week: WEEK, key: "extra:x", checked: true, at: now },
+      { kind: "extra", week: WEEK, id: theirs, checked: true, at: now },
+    ]);
+    expect(results.map((r) => r.status)).toEqual(["invalid", "invalid", "invalid"]);
+    expect(await labels(other.id)).toEqual(["towels"]);
   });
 
   it("adds, checks and removes extras, linking parsed items", async () => {

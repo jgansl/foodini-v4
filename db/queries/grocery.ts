@@ -5,9 +5,13 @@ import { groceryExtras, groceryMarks, items, planEntries, recipeIngredients, rec
 import { addDays } from "@/lib/dates";
 import { buildGroceryList, type GroceryExtra, type GroceryIngredient, type GroceryList, type GroceryMark } from "@/lib/grocery";
 import { normalizeItemName, parseIngredient } from "@/lib/ingredients";
+import { isLineKey, isListWeek, targetOf, type ListChange, type SyncResult, type SyncStatus } from "@/lib/offline-queue";
 import { resolveItems } from "./items";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// `updated_at` for rows no device has checked or unchecked yet: older than any device time, so last-write-wins
+// compares device clocks only with each other, never with the server's clock.
+const SERVER_WRITTEN = new Date(0);
 
 export async function loadWeekIngredients(userId: string, weekStart: string): Promise<GroceryIngredient[]> {
   return db
@@ -70,26 +74,35 @@ export async function getGroceryList(userId: string, weekStart: string, opts: { 
   return buildGroceryList(ingredients, marks, extras, opts);
 }
 
-async function upsertMark(userId: string, weekStart: string, key: string, patch: Partial<Pick<GroceryMark, "checked" | "checkedQty" | "hidden">>) {
+async function upsertMark(
+  userId: string,
+  weekStart: string,
+  key: string,
+  patch: Partial<Pick<GroceryMark, "checked" | "checkedQty" | "hidden">>,
+  at?: Date,
+) {
+  // `updated_at` holds device times from check-offs only. A row created by Hide starts at the epoch, so a
+  // queued check-off (stamped by a device clock that may run behind the server's) is never stale against it.
+  const stamp = at ? { updatedAt: at } : {};
   await db
     .insert(groceryMarks)
-    .values({ userId, weekStart, key, ...patch })
-    .onConflictDoUpdate({ target: [groceryMarks.userId, groceryMarks.weekStart, groceryMarks.key], set: { ...patch, updatedAt: new Date() } });
+    .values({ userId, weekStart, key, ...patch, updatedAt: at ?? SERVER_WRITTEN })
+    .onConflictDoUpdate({ target: [groceryMarks.userId, groceryMarks.weekStart, groceryMarks.key], set: { ...patch, ...stamp } });
 }
 
 /** Marks the line's current shortfall as bought. The amount is always computed here, never taken from the client. */
-export async function checkGroceryLine(userId: string, weekStart: string, key: string): Promise<boolean> {
+export async function checkGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<boolean> {
   const list = await getGroceryList(userId, weekStart, { showHidden: true });
   const need = list.sections.flatMap((s) => s.lines).find((l) => l.kind === "need" && l.key === key);
   if (!need) return false;
   const [mark] = (await listMarks(userId, weekStart)).filter((m) => m.key === key);
   const already = mark?.checked ? (mark.checkedQty ?? 0) : 0;
-  await upsertMark(userId, weekStart, key, { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase });
+  await upsertMark(userId, weekStart, key, { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase }, at);
   return true;
 }
 
-export async function uncheckGroceryLine(userId: string, weekStart: string, key: string): Promise<void> {
-  await upsertMark(userId, weekStart, key, { checked: false, checkedQty: null });
+export async function uncheckGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<void> {
+  await upsertMark(userId, weekStart, key, { checked: false, checkedQty: null }, at);
 }
 
 export async function setGroceryLineHidden(userId: string, weekStart: string, key: string, hidden: boolean): Promise<void> {
@@ -108,6 +121,8 @@ export async function addGroceryExtra(userId: string, weekStart: string, text: s
         weekStart,
         itemId: parsed.name ? (itemIds.get(normalizeItemName(parsed.name)) ?? null) : null,
         name: parsed.name ?? parsed.raw,
+        // No device has changed its checked state yet (see SERVER_WRITTEN).
+        updatedAt: SERVER_WRITTEN,
         quantity: parsed.name ? parsed.quantity : null,
         unit: parsed.name ? parsed.unit : null,
       })
@@ -116,14 +131,56 @@ export async function addGroceryExtra(userId: string, weekStart: string, text: s
   });
 }
 
-export async function setGroceryExtraChecked(userId: string, id: string, checked: boolean): Promise<boolean> {
+export async function setGroceryExtraChecked(userId: string, id: string, checked: boolean, at: Date = new Date()): Promise<boolean> {
   if (!UUID.test(id)) return false;
   const rows = await db
     .update(groceryExtras)
-    .set({ checked })
+    .set({ checked, updatedAt: at })
     .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)))
     .returning({ id: groceryExtras.id });
   return rows.length > 0;
+}
+
+/** Applies queued device changes in order. Last write wins: a change older than the row is skipped. */
+export async function applyGroceryChanges(userId: string, changes: ListChange[]): Promise<SyncResult[]> {
+  const results: SyncResult[] = [];
+  for (const change of changes) {
+    const at = new Date(change.at);
+    const done = (status: SyncStatus) => results.push({ target: targetOf(change), at: change.at, status });
+    if (change.kind === "line") {
+      if (!isListWeek(change.week) || !isLineKey(change.key)) {
+        done("invalid");
+        continue;
+      }
+      const [mark] = await db
+        .select({ updatedAt: groceryMarks.updatedAt })
+        .from(groceryMarks)
+        .where(and(eq(groceryMarks.userId, userId), eq(groceryMarks.weekStart, change.week), eq(groceryMarks.key, change.key)));
+      if (mark && mark.updatedAt > at) {
+        done("stale");
+        continue;
+      }
+      if (change.checked) await checkGroceryLine(userId, change.week, change.key, at);
+      else await uncheckGroceryLine(userId, change.week, change.key, at);
+      done("ok");
+    } else {
+      if (!UUID.test(change.id)) {
+        done("invalid");
+        continue;
+      }
+      const [row] = await db
+        .select({ updatedAt: groceryExtras.updatedAt })
+        .from(groceryExtras)
+        .where(and(eq(groceryExtras.id, change.id), eq(groceryExtras.userId, userId)));
+      if (!row) done("invalid");
+      else if (row.updatedAt > at) done("stale");
+      else {
+        await setGroceryExtraChecked(userId, change.id, change.checked, at);
+        done("ok");
+      }
+    }
+  }
+  return results;
 }
 
 export async function removeGroceryExtra(userId: string, id: string): Promise<boolean> {
