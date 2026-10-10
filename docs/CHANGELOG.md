@@ -4,6 +4,13 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+### Recipe page
+
+#### Changed
+- On phones, Ingredients and Instructions are tabs (arrow keys switch between them); scaled servings survive switching. Wider screens keep them side by side.
+- "Steps" is now headed "Instructions" on the recipe page.
+- Tags moved to the bottom of the recipe page.
+
 ### Phase 3b, offline list
 
 #### Added

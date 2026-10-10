@@ -11,7 +11,8 @@ export function ServingsScaler({ baseServings, ingredients }: { baseServings: nu
   return (
     <section aria-labelledby="ingredients-heading">
       <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 id="ingredients-heading" className="text-lg font-semibold">
+        {/* On phones the tab already names this section. */}
+        <h2 id="ingredients-heading" className="text-lg font-semibold max-md:sr-only">
           Ingredients
         </h2>
         <div className="flex items-center gap-2">

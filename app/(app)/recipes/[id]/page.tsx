@@ -9,6 +9,7 @@ import { getToday } from "@/server/today";
 import { AddEntryForm } from "../../plan/add-entry-form";
 import { deleteRecipeAction } from "../actions";
 import { DeleteRecipeButton } from "./delete-button";
+import { RecipeTabs } from "./recipe-tabs";
 import { ServingsScaler } from "./servings-scaler";
 
 export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
@@ -48,33 +49,24 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
         <img src={photo} alt={recipe.title} className="mb-6 max-h-80 w-full rounded-xl object-cover" />
       )}
 
-      {recipe.tags.length > 0 && (
-        <ul aria-label="Tags" className="mb-6 flex flex-wrap gap-2">
-          {recipe.tags.map((t) => (
-            <li key={t}>
-              <Link href={`/recipes?tag=${encodeURIComponent(t)}`} className={ui.chip}>
-                {t}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="grid gap-8 md:grid-cols-[2fr_3fr]">
-        <ServingsScaler baseServings={recipe.servings} ingredients={recipe.ingredients.map((i) => i.rawText)} />
-        {recipe.steps.length > 0 && (
-          <section aria-labelledby="steps-heading">
-            <h2 id="steps-heading" className="mb-3 text-lg font-semibold">
-              Steps
-            </h2>
-            <ol className="list-decimal space-y-3 pl-5">
-              {recipe.steps.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </section>
-        )}
-      </div>
+      <RecipeTabs
+        ingredients={<ServingsScaler baseServings={recipe.servings} ingredients={recipe.ingredients.map((i) => i.rawText)} />}
+        instructions={
+          recipe.steps.length > 0 ? (
+            <section aria-labelledby="steps-heading">
+              {/* On phones the tab already names this section. */}
+              <h2 id="steps-heading" className="mb-3 text-lg font-semibold max-md:sr-only">
+                Instructions
+              </h2>
+              <ol className="list-decimal space-y-3 pl-5">
+                {recipe.steps.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+            </section>
+          ) : null
+        }
+      />
 
       <section aria-labelledby="plan-heading" className={`${ui.card} mt-8`}>
         <h2 id="plan-heading" className="text-lg font-semibold">
@@ -106,6 +98,23 @@ export default async function RecipePage(props: PageProps<"/recipes/[id]">) {
             View original ({sourceHost})
           </a>
         </p>
+      )}
+
+      {recipe.tags.length > 0 && (
+        <section aria-labelledby="tags-heading" className="mt-8">
+          <h2 id="tags-heading" className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">
+            Tags
+          </h2>
+          <ul aria-label="Tags" className="flex flex-wrap gap-2">
+            {recipe.tags.map((t) => (
+              <li key={t}>
+                <Link href={`/recipes?tag=${encodeURIComponent(t)}`} className={ui.chip}>
+                  {t}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );
