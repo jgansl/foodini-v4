@@ -1,0 +1,129 @@
+# Changelog
+
+All notable changes to Foodini. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Each phase in [ROADMAP.md](ROADMAP.md) is a release.
+
+## [Unreleased]
+
+### Recipe archive
+
+#### Changed
+- The tag filter is a dropdown of checkboxes. Picking several tags shows recipes that have all of them.
+
+#### Fixed
+- Recipe tiles overflowed the page on narrow screens when a title or tag was long.
+
+### Phase 4, inventory
+
+#### Added
+- **Inventory** (`/inventory`, Inventory tab): add stock as "2 lb flour", edit an amount, remove it.
+- The grocery list buys only what stock doesn't cover. Stock in another unit kind shows as "you have 2 cups", and amount-less lines you have stock for show "have some".
+- Checking a line off adds it to inventory, and unchecking takes it back. Checked extras with an amount do the same. Offline check-offs sync the same way, and repeating one changes nothing.
+- Marking a meal cooked takes its ingredients out of inventory (never more than is on hand), and marking it not cooked puts back exactly what was taken.
+- "Change amount" on a checked line, for when you bought more or less than the list suggested.
+
+#### Fixed (found in review)
+- Two tabs or devices syncing the same check-off added it to inventory twice.
+- Two meals cooked at once could record more than was on hand, so un-cooking invented stock.
+- Unchecking an older week's item, or an extra from before inventory existed, removed stock it never added.
+- Unchecking after cooking part of the purchase left phantom stock when the meal was un-cooked.
+- Tapping a "still needed" line twice before syncing unchecked the original purchase.
+- A re-sent check-off with the same timestamp is ignored.
+
+#### Changed
+- The shortfall on the list comes from inventory instead of from the checked amount (D27). A migration moved checked marks from the current and future weeks into inventory.
+- `pnpm db:reparse` no longer deletes items that inventory or a cooked meal still refers to.
+
+### Recipe page
+
+#### Changed
+- On phones, Ingredients and Instructions are tabs (arrow keys switch between them); scaled servings survive switching. Wider screens keep them side by side.
+- "Steps" is now headed "Instructions" on the recipe page.
+- Tags moved to the bottom of the recipe page.
+
+### Phase 3b, offline list
+
+#### Added
+- Check-offs are saved on the device first and synced when you're back online, on focus, or on load. The newest change wins between devices.
+- A "waiting to sync" badge and an offline notice.
+- A service worker, so `/list` opens with no signal after an online visit.
+- `pnpm test:e2e:sw`, which tests the service worker against a production build.
+- CI for lint, unit tests and the build.
+
+#### Fixed
+- A check-off could be lost when reloading within a second of checking.
+- On a device's first visit, a page could show the wrong week, for example next week with your meals missing, when the local date differed from UTC's. This happens in the evening in the Americas. The server now tells the page which time zone it used, and the page refreshes if that gives a different date.
+- A malformed `tz` cookie no longer breaks pages.
+- The list opens offline even if you've only ever reached it through the List tab.
+- Rapid check-offs all sync; the last tap no longer waits for focus.
+- A check-off can't be undone by a phone clock that fell behind while it slept, or by timestamps the server wrote.
+
+#### Changed
+- Signing out clears lists saved on the device.
+- The README's deploy steps: migrations use Supabase's session pooler, the app uses the transaction pooler, and custom SMTP is recommended.
+
+### Phase 3a, grocery list
+
+#### Added
+- **Grocery list** (`/list`, List tab), built from the week's uncooked planned meals:
+  - ingredients are scaled to each meal's servings and merged across recipes;
+  - amounts are shown in readable units (48 tsp → 1 cup, 1500 ml → 1.5 l) and grouped by store section;
+  - unreadable lines are listed under Other.
+- **Instant check-offs:** if the plan grows after you've shopped, only the additional amount shows as still needed.
+- **Hide an item for the week,** with "Show hidden (n)".
+- **Extras:** add your own items, such as "paper towels" or "2 lb apples", to the week's list.
+- **`pnpm db:reparse`:** re-parses stored recipes with the current ingredient parser.
+
+#### Fixed
+- The ingredient parser reads more containers ("5 lb bag potatoes", "12-ounce bottles beer"), sizes in inches ("9-inch pie crust"), "3 garlic cloves" the same as "3 cloves garlic", and no longer treats "2 cans" as an item called "can".
+- Units pluralize correctly after arithmetic ("1 cup", not "1 cups").
+- "1-1/2 cups" is read as 1½ cups, not the range 1 to ½.
+- "Tea bags", "fish sticks" and "chicken pieces" stay items. Only clove, sprig, head, bunch and slice are read as units after an item name ("garlic cloves", "thyme sprigs").
+- Checking a line off keeps keyboard focus on it.
+
+### Phase 2, meal plan
+
+In review as [jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2).
+
+### Added
+- **Meal plan** (`/plan`): Monday–Sunday weeks, any number of recipes per day with their own servings (whole or half) and an optional label. Reorder, move to another day, edit, mark cooked, remove.
+- **Add to plan** on recipe pages.
+- **Plan** tab in the navigation.
+- A nudge on uncooked meals from earlier days.
+- "Today" follows your own time zone.
+- End-to-end tests run beside your own `pnpm dev` (Playwright uses its own build folder).
+
+### Changed
+- Deleting a recipe that's in the plan now says how many planned meals it will remove.
+
+### Fixed
+- The ingredient parser reads container sizes ("2 14-ounce cans chickpeas", "1 x 400g tin tomatoes"), irregular plurals ("bay leaves", "molasses") and a bare count such as "2 cloves".
+
+## [0.1.0] - 2026-09-27: Phase 1, foundation and recipe box
+
+In review as [jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1).
+
+### Added
+- **Sign-in** with an email magic link (Supabase Auth). Only addresses in `ALLOWED_EMAILS` can request a link or keep a session. Entries can be full addresses or whole domains (`@example.com`).
+- **Recipe box:**
+  - Create, edit and delete recipes.
+  - Search by title.
+  - Filter by tag.
+  - Add notes and a source link.
+  - Attach an optional photo (JPEG, PNG or WebP, up to 5 MB, stored privately).
+- **Ingredient parsing:** each line is read into quantity, unit and item, with a live preview in the form. Handles fractions (½, 1 1/2), ranges, parenthetical sizes, "to taste" and notes. Lines it can't read are kept as written and flagged.
+- **Items:** a per-user item list shared by all recipes. "Eggs" and "egg" are one item. Each item gets a default store section and unit kind.
+- **Servings scaler** on the recipe page.
+- **Import from a link:** reads schema.org recipe data and fills the form for review before saving.
+- **Per-user access** enforced in every query and by row-level security on all tables and on photo storage.
+- **Tests:** 167 unit, 18 integration (including row-level security) and 8 Playwright end-to-end tests on a phone viewport.
+- **README** covering local setup, tests and deployment.
+
+### Security
+- The import fetcher refuses private and loopback addresses, checks again after every redirect, and caps pages at 10 s and 2 MB.
+- Sign-in redirects (`?next=`) are limited to same-site paths, including paths with control characters that browsers strip.
+
+### Known issues
+See the [`deferred` issues](https://github.com/jgansl/foodini-v4/issues?q=label%3Adeferred) for the deferred list. The most noticeable:
+- Allrecipes and Serious Eats block the importer (HTTP 403).
+- Scaled counts don't re-pluralize ("1 potatoes") and can show fractions ("5 ¼ eggs").
+- Importing overwrites fields you've already typed.
