@@ -123,6 +123,7 @@ Known issues and deferred work. Items marked ★ block a later phase.
 - If a recipe is deleted while being edited, saving orphans the new photo.
 
 **Legal**
+- Since the pnpm 12.11.2 upgrade, `pnpm licenses list --prod` reports fewer packages (21 MIT and no LGPL entry, versus 57 MIT and 1 LGPL in `docs/LICENSING.md`). Confirm whether pnpm 12 leaves out platform-specific packages such as `sharp`'s libvips, then update `docs/LICENSING.md` (or compare with pnpm's `--long`/JSON output).
 - Choose a project license. There is none yet, so all rights are reserved. The options (proprietary, source-available, AGPL, permissive) are listed in the phase 1 discussion; add `LICENSE` and a README copyright line once chosen.
 - Trademark check on "Foodini": Natural Machines sells a Foodini 3D food printer. Search the USPTO and EUIPO registers before any public launch or branding.
 - Imported recipe text and photos are third-party copyright. They're fine in a private recipe box, but any sharing or publishing feature needs review first.
