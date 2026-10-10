@@ -1,3 +1,4 @@
+import { stockKey, stockMap, type InventoryEntry } from "./inventory";
 import { SECTIONS, type Section } from "./sections";
 import { formatAmount, formatQuantity, toBase, unitKeyForKind, unitLabel, type UnitKind, type UnitSystem } from "./units";
 
@@ -29,11 +30,18 @@ export type GroceryLine = {
   hidden: boolean;
   shortfallBase: number | null;
   extraId: string | null;
+  /** "have some" or "you have 5 cups": stock that didn't reduce this line. */
+  hint: string | null;
+  /** An amount-less line whose item is in stock: still listed, but de-emphasized. */
+  dimmed: boolean;
+  /** Display system of the line's amount, used when it's added to inventory. */
+  system: UnitSystem | null;
 };
 export type GroceryList = { sections: { section: Section; lines: GroceryLine[] }[]; toBuy: number; checked: number; hiddenCount: number };
 
 type Group = {
   key: string;
+  itemId: string | null;
   name: string;
   section: Section;
   unitKey: string;
@@ -64,6 +72,7 @@ function groupIngredients(ingredients: GroceryIngredient[]): Map<string, Group> 
     if (!group) {
       group = {
         key,
+        itemId: ing.itemId,
         name: ing.itemId !== null ? (ing.itemName ?? ing.rawText) : ing.rawText,
         section: ing.itemId !== null ? asSection(ing.itemSection) : "other",
         unitKey: base?.unitKey ?? (ing.itemId !== null ? unitKeyForKind(ing.itemUnitKind ?? "count") : "count:each"),
@@ -82,17 +91,29 @@ function groupIngredients(ingredients: GroceryIngredient[]): Map<string, Group> 
   return groups;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `item:<item_id>:<unitKey>` → its parts; null for raw and extra keys. */
+export function parseLineKey(key: string): { itemId: string; unitKey: string } | null {
+  if (!key.startsWith("item:")) return null;
+  const itemId = key.slice(5, 41);
+  const unitKey = key.slice(42);
+  return UUID.test(itemId) && key[41] === ":" && unitKey ? { itemId, unitKey } : null;
+}
+
 const labelFor = (amount: string | null, name: string) => (amount ? `${amount} ${name}` : name);
 
 export function buildGroceryList(
   ingredients: GroceryIngredient[],
   marks: GroceryMark[],
   extras: GroceryExtra[],
-  opts: { showHidden?: boolean } = {},
+  opts: { showHidden?: boolean; inventory?: InventoryEntry[] } = {},
 ): GroceryList {
   const markByKey = new Map(marks.map((m) => [m.key, m]));
   const lines: GroceryLine[] = [];
   let hiddenCount = 0;
+  const inventory = (opts.inventory ?? []).filter((e) => e.quantity > 0);
+  const onHand = stockMap(inventory);
 
   for (const group of groupIngredients(ingredients).values()) {
     const mark = markByKey.get(group.key);
@@ -100,21 +121,44 @@ export function buildGroceryList(
     if (hidden) hiddenCount++;
     if (hidden && !opts.showHidden) continue;
     const recipes = [...group.recipes].sort();
-    const common = { key: group.key, name: group.name, section: group.section, recipes, hidden, extraId: null };
+    const have = group.itemId !== null ? (onHand.get(stockKey(group.itemId, group.unitKey)) ?? 0) : 0;
+    const otherStock = group.itemId !== null ? inventory.filter((e) => e.itemId === group.itemId && e.unitKey !== group.unitKey) : [];
+    const common = { key: group.key, name: group.name, section: group.section, recipes, hidden, extraId: null, system: group.system };
     const amount = (base: number) => formatAmount(group.unitKey, base, group.system);
 
     if (group.required === null) {
       const checked = mark?.checked ?? false;
-      lines.push({ ...common, id: group.key, kind: checked ? "bought" : "need", label: group.name, checked, shortfallBase: null });
+      const haveSome = !checked && (have > 0 || otherStock.length > 0);
+      lines.push({
+        ...common,
+        id: group.key,
+        kind: checked ? "bought" : "need",
+        label: group.name,
+        checked,
+        shortfallBase: null,
+        hint: haveSome ? "have some" : null,
+        dimmed: haveSome,
+      });
       continue;
     }
-    const bought = mark?.checked ? (mark.checkedQty ?? group.required) : 0;
-    const shortfall = Math.max(0, group.required - bought);
+    // Bought amounts live in inventory (phase 4), so the shortfall comes from stock, not from the mark (D27).
+    const shortfall = Math.max(0, group.required - have);
     if (mark?.checked) {
-      lines.push({ ...common, id: group.key, kind: "bought", label: labelFor(amount(bought), group.name), checked: true, shortfallBase: null });
+      const bought = mark.checkedQty ?? group.required;
+      lines.push({ ...common, id: group.key, kind: "bought", label: labelFor(amount(bought), group.name), checked: true, shortfallBase: null, hint: null, dimmed: false });
     }
     if (shortfall > group.required * 1e-6) {
-      lines.push({ ...common, id: mark?.checked ? `${group.key}#more` : group.key, kind: "need", label: labelFor(amount(shortfall), group.name), checked: false, shortfallBase: shortfall });
+      const hint = have === 0 && otherStock.length > 0 ? `you have ${otherStock.map((e) => formatAmount(e.unitKey, e.quantity, e.system)).join(", ")}` : null;
+      lines.push({
+        ...common,
+        id: mark?.checked ? `${group.key}#more` : group.key,
+        kind: "need",
+        label: labelFor(amount(shortfall), group.name),
+        checked: false,
+        shortfallBase: shortfall,
+        hint,
+        dimmed: false,
+      });
     }
   }
 
@@ -133,6 +177,9 @@ export function buildGroceryList(
       hidden: false,
       shortfallBase: null,
       extraId: extra.id,
+      hint: null,
+      dimmed: false,
+      system: null,
     });
   }
 

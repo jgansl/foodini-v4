@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { buildGroceryList, rawKey, type GroceryExtra, type GroceryIngredient, type GroceryMark } from "./grocery";
+import type { InventoryEntry } from "./inventory";
+import { buildGroceryList, parseLineKey, rawKey, type GroceryExtra, type GroceryIngredient, type GroceryMark } from "./grocery";
 
 const FLOUR = { itemId: "i-flour", itemName: "flour", itemSection: "pantry", itemUnitKind: "volume" as const };
 const MILK = { itemId: "i-milk", itemName: "milk", itemSection: "dairy & eggs", itemUnitKind: "volume" as const };
 const TOMATO = { itemId: "i-tomato", itemName: "tomatoes", itemSection: "produce", itemUnitKind: "count" as const };
 const SALT = { itemId: "i-salt", itemName: "salt", itemSection: "spices", itemUnitKind: "count" as const };
+
+const stock = (itemId: string, unitKey: string, quantity: number, system: InventoryEntry["system"] = "us"): InventoryEntry => ({
+  itemId, unitKey, quantity, system,
+});
 
 function ing(overrides: Partial<GroceryIngredient>): GroceryIngredient {
   return {
@@ -79,9 +84,9 @@ describe("buildGroceryList", () => {
     expect(list.sections[0].lines[0]).toMatchObject({ key: rawKey("For the sauce:"), recipes: ["Chili", "Pancakes"] });
   });
 
-  it("renders a checked line from its mark", () => {
+  it("renders a checked line from its mark when inventory covers it", () => {
     const marks: GroceryMark[] = [{ key: "item:i-flour:volume", checked: true, checkedQty: 473.176, hidden: false }];
-    const list = buildGroceryList([ing({ ...FLOUR, quantity: 2, unit: "cup" })], marks, []);
+    const list = buildGroceryList([ing({ ...FLOUR, quantity: 2, unit: "cup" })], marks, [], { inventory: [stock("i-flour", "volume", 473.176)] });
     expect(labels(list)).toEqual(["pantry: ✓ 2 cups flour"]);
     // Same id as the need line it replaces, so the row (and keyboard focus) survives the re-render.
     expect(list.sections[0].lines[0]).toMatchObject({ kind: "bought", id: "item:i-flour:volume" });
@@ -90,7 +95,7 @@ describe("buildGroceryList", () => {
 
   it("shows a bought line and the remainder when the plan grows", () => {
     const marks: GroceryMark[] = [{ key: "item:i-flour:volume", checked: true, checkedQty: 473.176, hidden: false }];
-    const list = buildGroceryList([ing({ ...FLOUR, quantity: 3, unit: "cup" })], marks, []);
+    const list = buildGroceryList([ing({ ...FLOUR, quantity: 3, unit: "cup" })], marks, [], { inventory: [stock("i-flour", "volume", 473.176)] });
     expect(labels(list)).toEqual(["pantry: 1 cup flour", "pantry: ✓ 2 cups flour"]);
     expect(list.sections[0].lines[0]).toMatchObject({ kind: "need", id: "item:i-flour:volume#more", shortfallBase: expect.closeTo(236.588, 2) });
     expect(list.sections[0].lines[1]).toMatchObject({ kind: "bought", id: "item:i-flour:volume" });
@@ -111,6 +116,31 @@ describe("buildGroceryList", () => {
     expect(shown.sections.flatMap((s) => s.lines).find((l) => l.name === "flour")).toMatchObject({ hidden: true });
   });
 
+  it("subtracts what's on hand and leaves out lines you already have", () => {
+    const ings = [ing({ ...FLOUR, quantity: 3, unit: "cup" }), ing({ ...MILK, quantity: 1, unit: "cup" })];
+    const list = buildGroceryList(ings, [], [], { inventory: [stock("i-flour", "volume", 473.176), stock("i-milk", "volume", 500)] });
+    expect(labels(list)).toEqual(["pantry: 1 cup flour"]);
+  });
+
+  it("never subtracts across unit kinds, and says what you have", () => {
+    const list = buildGroceryList([ing({ ...FLOUR, itemUnitKind: "weight", quantity: 200, unit: "g" })], [], [], {
+      inventory: [stock("i-flour", "volume", 473.176)],
+    });
+    expect(labels(list)).toEqual(["pantry: 200 g flour"]);
+    expect(list.sections[0].lines[0]).toMatchObject({ hint: "you have 2 cups", dimmed: false });
+  });
+
+  it("marks an amount-less line 'have some' when the item is in stock", () => {
+    const list = buildGroceryList([ing({ ...SALT, rawText: "Salt to taste" })], [], [], { inventory: [stock("i-salt", "volume", 5)] });
+    expect(labels(list)).toEqual(["spices: salt"]);
+    expect(list.sections[0].lines[0]).toMatchObject({ hint: "have some", dimmed: true, checked: false });
+  });
+
+  it("carries the display system on need lines", () => {
+    const list = buildGroceryList([ing({ ...FLOUR, itemUnitKind: "weight", quantity: 200, unit: "g" })], [], []);
+    expect(list.sections[0].lines[0]).toMatchObject({ system: "metric", hint: null, dimmed: false });
+  });
+
   it("adds extras to their section and orders unchecked lines first", () => {
     const extras: GroceryExtra[] = [
       { id: "e1", name: "paper towels", quantity: null, unit: null, section: null, checked: false },
@@ -125,5 +155,15 @@ describe("buildGroceryList", () => {
 
   it("returns no sections for an empty week", () => {
     expect(buildGroceryList([], [], [])).toEqual({ sections: [], toBuy: 0, checked: 0, hiddenCount: 0 });
+  });
+});
+
+describe("parseLineKey", () => {
+  it("splits item keys and rejects others", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(parseLineKey(`item:${id}:count:can`)).toEqual({ itemId: id, unitKey: "count:can" });
+    expect(parseLineKey(`item:${id}:volume`)).toEqual({ itemId: id, unitKey: "volume" });
+    expect(parseLineKey("raw:for the sauce:")).toBeNull();
+    expect(parseLineKey("item:not-an-id:volume")).toBeNull();
   });
 });
