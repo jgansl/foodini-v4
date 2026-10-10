@@ -53,6 +53,12 @@ describe("planDeductions", () => {
     expect(deductions[stockKey(FLOUR, "volume")]).toBe(300);
   });
 
+  it("takes all of the stock when the need is within float noise of it", () => {
+    const exact = new Map([[stockKey(FLOUR, "volume"), 709.764]]);
+    const deductions = planDeductions([{ itemId: FLOUR, quantity: 3, unit: "cup" }], 1, exact);
+    expect(deductions[stockKey(FLOUR, "volume")]).toBe(709.764);
+  });
+
   it("skips lines without an item, an amount, or matching stock", () => {
     expect(
       planDeductions(

@@ -1,11 +1,14 @@
 import "server-only";
 import { and, asc, eq, gte, isNull, lte } from "drizzle-orm";
-import { db } from "@/db";
+import { db, type DbOrTx } from "@/db";
 import { groceryExtras, groceryMarks, items, planEntries, recipeIngredients, recipes } from "@/db/schema";
 import { addDays } from "@/lib/dates";
-import { buildGroceryList, type GroceryExtra, type GroceryIngredient, type GroceryList, type GroceryMark } from "@/lib/grocery";
+import { buildGroceryList, parseLineKey, type GroceryExtra, type GroceryIngredient, type GroceryList, type GroceryMark } from "@/lib/grocery";
 import { normalizeItemName, parseIngredient } from "@/lib/ingredients";
+import { amountForKey } from "@/lib/inventory";
+import { toBase } from "@/lib/units";
 import { isLineKey, isListWeek, targetOf, type ListChange, type SyncResult, type SyncStatus } from "@/lib/offline-queue";
+import { adjustInventory, getStock } from "./inventory";
 import { resolveItems } from "./items";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -66,15 +69,17 @@ export async function listExtras(userId: string, weekStart: string): Promise<Gro
 }
 
 export async function getGroceryList(userId: string, weekStart: string, opts: { showHidden?: boolean } = {}): Promise<GroceryList> {
-  const [ingredients, marks, extras] = await Promise.all([
+  const [ingredients, marks, extras, stock] = await Promise.all([
     loadWeekIngredients(userId, weekStart),
     listMarks(userId, weekStart),
     listExtras(userId, weekStart),
+    getStock(db, userId),
   ]);
-  return buildGroceryList(ingredients, marks, extras, opts);
+  return buildGroceryList(ingredients, marks, extras, { ...opts, inventory: stock });
 }
 
 async function upsertMark(
+  tx: DbOrTx,
   userId: string,
   weekStart: string,
   key: string,
@@ -84,29 +89,61 @@ async function upsertMark(
   // `updated_at` holds device times from check-offs only. A row created by Hide starts at the epoch, so a
   // queued check-off (stamped by a device clock that may run behind the server's) is never stale against it.
   const stamp = at ? { updatedAt: at } : {};
-  await db
+  await tx
     .insert(groceryMarks)
     .values({ userId, weekStart, key, ...patch, updatedAt: at ?? SERVER_WRITTEN })
     .onConflictDoUpdate({ target: [groceryMarks.userId, groceryMarks.weekStart, groceryMarks.key], set: { ...patch, ...stamp } });
 }
 
-/** Marks the line's current shortfall as bought. The amount is always computed here, never taken from the client. */
+const markFor = (tx: DbOrTx, userId: string, weekStart: string, key: string) =>
+  tx
+    .select({ checked: groceryMarks.checked, checkedQty: groceryMarks.checkedQty })
+    .from(groceryMarks)
+    .where(and(eq(groceryMarks.userId, userId), eq(groceryMarks.weekStart, weekStart), eq(groceryMarks.key, key)))
+    .for("update");
+
+/** Marks the line's current shortfall as bought and adds it to inventory, in one transaction. Amounts never come from the client. */
 export async function checkGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<boolean> {
   const list = await getGroceryList(userId, weekStart, { showHidden: true });
   const need = list.sections.flatMap((s) => s.lines).find((l) => l.kind === "need" && l.key === key);
   if (!need) return false;
-  const [mark] = (await listMarks(userId, weekStart)).filter((m) => m.key === key);
-  const already = mark?.checked ? (mark.checkedQty ?? 0) : 0;
-  await upsertMark(userId, weekStart, key, { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase }, at);
+  await db.transaction(async (tx) => {
+    const [mark] = await markFor(tx, userId, weekStart, key);
+    const already = mark?.checked ? (mark.checkedQty ?? 0) : 0;
+    await upsertMark(tx, userId, weekStart, key, { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase }, at);
+    const parts = parseLineKey(key);
+    if (parts && need.shortfallBase !== null) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, need.shortfallBase, need.system);
+  });
   return true;
 }
 
+/** Takes the bought amount back out of inventory and clears the mark. Does nothing to inventory if it wasn't checked. */
 export async function uncheckGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<void> {
-  await upsertMark(userId, weekStart, key, { checked: false, checkedQty: null }, at);
+  await db.transaction(async (tx) => {
+    const [mark] = await markFor(tx, userId, weekStart, key);
+    const parts = parseLineKey(key);
+    if (mark?.checked && mark.checkedQty !== null && parts) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, -mark.checkedQty, null);
+    await upsertMark(tx, userId, weekStart, key, { checked: false, checkedQty: null }, at);
+  });
+}
+
+/** Changes how much of a checked line was bought; inventory moves by the difference. */
+export async function setBoughtAmount(userId: string, weekStart: string, key: string, text: string): Promise<"ok" | "unreadable" | "missing"> {
+  const parts = parseLineKey(key);
+  if (!parts) return "missing";
+  const amount = amountForKey(text, parts.unitKey);
+  if (!amount) return "unreadable";
+  return db.transaction(async (tx) => {
+    const [mark] = await markFor(tx, userId, weekStart, key);
+    if (!mark?.checked || mark.checkedQty === null) return "missing";
+    await upsertMark(tx, userId, weekStart, key, { checkedQty: amount.amount });
+    await adjustInventory(tx, userId, parts.itemId, parts.unitKey, amount.amount - mark.checkedQty, amount.system);
+    return "ok";
+  });
 }
 
 export async function setGroceryLineHidden(userId: string, weekStart: string, key: string, hidden: boolean): Promise<void> {
-  await upsertMark(userId, weekStart, key, { hidden });
+  await upsertMark(db, userId, weekStart, key, { hidden });
 }
 
 export async function addGroceryExtra(userId: string, weekStart: string, text: string): Promise<string | null> {
@@ -133,12 +170,24 @@ export async function addGroceryExtra(userId: string, weekStart: string, text: s
 
 export async function setGroceryExtraChecked(userId: string, id: string, checked: boolean, at: Date = new Date()): Promise<boolean> {
   if (!UUID.test(id)) return false;
-  const rows = await db
-    .update(groceryExtras)
-    .set({ checked, updatedAt: at })
-    .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)))
-    .returning({ id: groceryExtras.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const [extra] = await tx
+      .select({ checked: groceryExtras.checked, itemId: groceryExtras.itemId, quantity: groceryExtras.quantity, unit: groceryExtras.unit })
+      .from(groceryExtras)
+      .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)))
+      .for("update");
+    if (!extra) return false;
+    // Inventory follows real changes only, so a repeated check (e.g. re-sent offline) adds nothing.
+    if (extra.checked !== checked && extra.itemId !== null && extra.quantity !== null) {
+      const base = toBase(extra.quantity, extra.unit);
+      await adjustInventory(tx, userId, extra.itemId, base.unitKey, checked ? base.amount : -base.amount, base.system);
+    }
+    await tx
+      .update(groceryExtras)
+      .set({ checked, updatedAt: at })
+      .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)));
+    return true;
+  });
 }
 
 /** Applies queued device changes in order. Last write wins: a change older than the row is skipped. */

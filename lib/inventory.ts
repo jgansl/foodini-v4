@@ -23,6 +23,9 @@ export function stockMap(entries: InventoryEntry[]): Map<string, number> {
   return map;
 }
 
+/** Amounts below this are float noise from unit conversion, not stock. */
+export const STOCK_EPSILON = 1e-6;
+
 /** What cooking takes, per stock key: the scaled need, capped at what's on hand. Untracked lines take nothing. */
 export function planDeductions(
   ingredients: { itemId: string | null; quantity: number | null; unit: string | null }[],
@@ -38,8 +41,10 @@ export function planDeductions(
   }
   const deductions: Record<string, number> = {};
   for (const [key, amount] of needed) {
-    const take = Math.min(amount, stock.get(key) ?? 0);
-    if (take > 0) deductions[key] = take;
+    const have = stock.get(key) ?? 0;
+    // Within float noise of the whole stock: take all of it, so no 1e-14 sliver is left behind.
+    const take = amount >= have - STOCK_EPSILON ? have : amount;
+    if (take > STOCK_EPSILON) deductions[key] = take;
   }
   return deductions;
 }

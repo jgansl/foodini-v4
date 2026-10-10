@@ -1,9 +1,11 @@
 import "server-only";
 import { and, asc, count, desc, eq, gt, gte, lt, lte, max } from "drizzle-orm";
 import { db, type DbOrTx } from "@/db";
-import { planEntries, recipes } from "@/db/schema";
+import { planEntries, recipeIngredients, recipes } from "@/db/schema";
 import { addDays } from "@/lib/dates";
+import { planDeductions, splitStockKey, stockMap } from "@/lib/inventory";
 import type { PlanEntryInput, PlanEntryUpdate } from "@/lib/plan-input";
+import { adjustInventory, getStock } from "./inventory";
 
 export type PlanEntryView = {
   id: string;
@@ -103,14 +105,46 @@ export async function movePlanEntryToDate(userId: string, id: string, date: stri
   });
 }
 
+/**
+ * Cooking takes the meal's scaled ingredients out of inventory (never more than is on hand) and records what it
+ * took; un-cooking puts exactly that back. Repeating either does nothing.
+ */
 export async function setPlanEntryCooked(userId: string, id: string, cooked: boolean): Promise<boolean> {
   if (!UUID.test(id)) return false;
-  const rows = await db
-    .update(planEntries)
-    .set({ cookedAt: cooked ? new Date() : null })
-    .where(owned(userId, id))
-    .returning({ id: planEntries.id });
-  return rows.length > 0;
+  return db.transaction(async (tx) => {
+    const [entry] = await tx
+      .select({ cookedAt: planEntries.cookedAt, deducted: planEntries.deducted, recipeId: planEntries.recipeId, servings: planEntries.servings })
+      .from(planEntries)
+      .where(owned(userId, id))
+      .for("update");
+    if (!entry) return false;
+    if (cooked === (entry.cookedAt !== null)) return true;
+
+    if (cooked) {
+      const [recipe] = await tx
+        .select({ servings: recipes.servings })
+        .from(recipes)
+        .where(and(eq(recipes.id, entry.recipeId), eq(recipes.userId, userId)));
+      const ingredients = await tx
+        .select({ itemId: recipeIngredients.itemId, quantity: recipeIngredients.quantity, unit: recipeIngredients.unit })
+        .from(recipeIngredients)
+        .where(and(eq(recipeIngredients.recipeId, entry.recipeId), eq(recipeIngredients.userId, userId)));
+      const factor = recipe && recipe.servings > 0 ? entry.servings / recipe.servings : 1;
+      const deducted = planDeductions(ingredients, factor, stockMap(await getStock(tx, userId)));
+      for (const [key, take] of Object.entries(deducted)) {
+        const parts = splitStockKey(key);
+        if (parts) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, -take, null);
+      }
+      await tx.update(planEntries).set({ cookedAt: new Date(), deducted }).where(owned(userId, id));
+    } else {
+      for (const [key, take] of Object.entries(entry.deducted ?? {})) {
+        const parts = splitStockKey(key);
+        if (parts) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, take, null);
+      }
+      await tx.update(planEntries).set({ cookedAt: null, deducted: null }).where(owned(userId, id));
+    }
+    return true;
+  });
 }
 
 export async function removePlanEntry(userId: string, id: string): Promise<boolean> {

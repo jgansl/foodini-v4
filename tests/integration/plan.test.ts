@@ -10,7 +10,9 @@ import {
   setPlanEntryCooked,
   updatePlanEntry,
 } from "@/db/queries/plan";
+import { addStockFromText, listInventory } from "@/db/queries/inventory";
 import { createRecipe, deleteRecipe, getRecipe } from "@/db/queries/recipes";
+import { formatAmount } from "@/lib/units";
 import type { RecipeInput } from "@/lib/recipe-input";
 import { createTestUser, deleteTestUser, type TestUser } from "./helpers";
 
@@ -157,5 +159,31 @@ describe("plan queries", () => {
     const r = await createRecipe(u.id, soup);
     await add(u.id, r);
     await expect(deleteTestUser(u.id)).resolves.toBeUndefined();
+  });
+
+  it("takes only what's on hand and restores exactly that", async () => {
+    const u = await newUser();
+    const r = await createRecipe(u.id, { ...soup, ingredients: ["3 cups flour", "2 eggs", "Salt to taste"] });
+    const a = await add(u.id, r);
+    await addStockFromText(u.id, "1 cup flour");
+    await addStockFromText(u.id, "6 eggs");
+    expect(await setPlanEntryCooked(u.id, a, true)).toBe(true);
+    const shelf = async () => (await listInventory(u.id)).map((s) => `${formatAmount(s.unitKey, s.quantity, s.system)} ${s.name}`);
+    expect(await shelf()).toEqual(["4 eggs"]);
+    expect(await setPlanEntryCooked(u.id, a, false)).toBe(true);
+    expect(await shelf()).toEqual(["6 eggs", "1 cup flour"]);
+  });
+
+  it("cooking or un-cooking twice does nothing the second time", async () => {
+    const u = await newUser();
+    const r = await createRecipe(u.id, { ...soup, ingredients: ["2 eggs"] });
+    const a = await add(u.id, r);
+    await addStockFromText(u.id, "6 eggs");
+    await setPlanEntryCooked(u.id, a, true);
+    await setPlanEntryCooked(u.id, a, true);
+    expect((await listInventory(u.id))[0].quantity).toBe(4);
+    await setPlanEntryCooked(u.id, a, false);
+    await setPlanEntryCooked(u.id, a, false);
+    expect((await listInventory(u.id))[0].quantity).toBe(6);
   });
 });
