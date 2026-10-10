@@ -13,6 +13,14 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 - Marking a meal cooked takes its ingredients out of inventory (never more than is on hand), and marking it not cooked puts back exactly what was taken.
 - "Change amount" on a checked line, for when you bought more or less than the list suggested.
 
+#### Fixed (found in review)
+- Two tabs or devices syncing the same check-off added it to inventory twice.
+- Two meals cooked at once could record more than was on hand, so un-cooking invented stock.
+- Unchecking an older week's item, or an extra from before inventory existed, removed stock it never added.
+- Unchecking after cooking part of the purchase left phantom stock when the meal was un-cooked.
+- Tapping a "still needed" line twice before syncing unchecked the original purchase.
+- A re-sent check-off with the same timestamp is ignored.
+
 #### Changed
 - The shortfall on the list comes from inventory instead of from the checked amount (D27). A migration moved checked marks from the current and future weeks into inventory.
 - `pnpm db:reparse` no longer deletes items that inventory or a cooked meal still refers to.

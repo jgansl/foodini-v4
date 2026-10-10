@@ -64,6 +64,13 @@
       "when": 1791673166066,
       "tag": "0008_inventory_rls_and_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791673788322,
+      "tag": "0009_in_inventory",
+      "breakpoints": true
     }
   ]
 }

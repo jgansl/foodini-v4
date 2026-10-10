@@ -42,13 +42,15 @@ export default async function InventoryPage() {
                           {amount} {row.name}
                         </span>
                         <ConfirmForm action={removeStockAction.bind(null, row.itemId, row.unitKey)} message={`Remove ${row.name} from your inventory?`}>
-                          <button type="submit" aria-label={`Remove ${row.name}`} className="text-sm text-neutral-500 hover:underline">
+                          <button type="submit" aria-label={`Remove ${amount} ${row.name}`} className="text-sm text-neutral-500 hover:underline">
                             Remove
                           </button>
                         </ConfirmForm>
                       </div>
                       <details className="mt-1">
-                        <summary className="cursor-pointer text-sm text-neutral-600 dark:text-neutral-400">Edit amount</summary>
+                        <summary className="cursor-pointer text-sm text-neutral-600 dark:text-neutral-400">
+                          Edit amount<span className="sr-only"> of {amount} {row.name}</span>
+                        </summary>
                         <EditStockForm id={id} name={row.name} current={amount} action={setStockAction.bind(null, row.itemId, row.unitKey)} />
                       </details>
                     </li>

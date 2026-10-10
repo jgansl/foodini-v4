@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPending, enqueue, isLineKey, isListWeek, parseSyncBody, removeSynced, targetOf, type ListChange } from "./offline-queue";
+import { applyPending, dropChange, enqueue, isLineKey, isListWeek, parseSyncBody, removeSynced, targetOf, type ListChange } from "./offline-queue";
 
 const WEEK = "2026-09-28";
 const line = (key: string, checked: boolean, at: number): ListChange => ({ kind: "line", week: WEEK, key, checked, at });
@@ -75,5 +75,12 @@ describe("parseSyncBody", () => {
     ["too many", { changes: Array.from({ length: 201 }, (_, i) => line(`item:${i}:volume`, true, now)) }],
   ])("rejects %s", (_name, body) => {
     expect(parseSyncBody(body, now)).toEqual({ ok: false });
+  });
+});
+
+describe("dropChange", () => {
+  it("removes the queued change for a target and keeps the rest", () => {
+    const q = enqueue(enqueue([], line("item:a:volume", true, 1)), extra(ID, true, 2));
+    expect(dropChange(q, "line:2026-09-28:item:a:volume")).toEqual([extra(ID, true, 2)]);
   });
 });

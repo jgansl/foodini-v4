@@ -8,7 +8,7 @@ import { normalizeItemName, parseIngredient } from "@/lib/ingredients";
 import { amountForKey } from "@/lib/inventory";
 import { toBase } from "@/lib/units";
 import { isLineKey, isListWeek, targetOf, type ListChange, type SyncResult, type SyncStatus } from "@/lib/offline-queue";
-import { adjustInventory, getStock } from "./inventory";
+import { adjustInventory, getStock, lockUser, shrinkDeductions } from "./inventory";
 import { resolveItems } from "./items";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,8 +16,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // compares device clocks only with each other, never with the server's clock.
 const SERVER_WRITTEN = new Date(0);
 
-export async function loadWeekIngredients(userId: string, weekStart: string): Promise<GroceryIngredient[]> {
-  return db
+export async function loadWeekIngredients(userId: string, weekStart: string, conn: DbOrTx = db): Promise<GroceryIngredient[]> {
+  return conn
     .select({
       recipeTitle: recipes.title,
       entryServings: planEntries.servings,
@@ -45,15 +45,15 @@ export async function loadWeekIngredients(userId: string, weekStart: string): Pr
     .orderBy(asc(planEntries.date), asc(planEntries.position), asc(recipeIngredients.position));
 }
 
-export async function listMarks(userId: string, weekStart: string): Promise<GroceryMark[]> {
-  return db
+export async function listMarks(userId: string, weekStart: string, conn: DbOrTx = db): Promise<GroceryMark[]> {
+  return conn
     .select({ key: groceryMarks.key, checked: groceryMarks.checked, checkedQty: groceryMarks.checkedQty, hidden: groceryMarks.hidden })
     .from(groceryMarks)
     .where(and(eq(groceryMarks.userId, userId), eq(groceryMarks.weekStart, weekStart)));
 }
 
-export async function listExtras(userId: string, weekStart: string): Promise<GroceryExtra[]> {
-  return db
+export async function listExtras(userId: string, weekStart: string, conn: DbOrTx = db): Promise<GroceryExtra[]> {
+  return conn
     .select({
       id: groceryExtras.id,
       name: groceryExtras.name,
@@ -68,12 +68,17 @@ export async function listExtras(userId: string, weekStart: string): Promise<Gro
     .orderBy(asc(groceryExtras.createdAt));
 }
 
-export async function getGroceryList(userId: string, weekStart: string, opts: { showHidden?: boolean } = {}): Promise<GroceryList> {
+export async function getGroceryList(
+  userId: string,
+  weekStart: string,
+  opts: { showHidden?: boolean } = {},
+  conn: DbOrTx = db,
+): Promise<GroceryList> {
   const [ingredients, marks, extras, stock] = await Promise.all([
-    loadWeekIngredients(userId, weekStart),
-    listMarks(userId, weekStart),
-    listExtras(userId, weekStart),
-    getStock(db, userId),
+    loadWeekIngredients(userId, weekStart, conn),
+    listMarks(userId, weekStart, conn),
+    listExtras(userId, weekStart, conn),
+    getStock(conn, userId),
   ]);
   return buildGroceryList(ingredients, marks, extras, { ...opts, inventory: stock });
 }
@@ -83,7 +88,7 @@ async function upsertMark(
   userId: string,
   weekStart: string,
   key: string,
-  patch: Partial<Pick<GroceryMark, "checked" | "checkedQty" | "hidden">>,
+  patch: Partial<Pick<GroceryMark, "checked" | "checkedQty" | "hidden">> & { inInventory?: boolean },
   at?: Date,
 ) {
   // `updated_at` holds device times from check-offs only. A row created by Hide starts at the epoch, so a
@@ -97,33 +102,56 @@ async function upsertMark(
 
 const markFor = (tx: DbOrTx, userId: string, weekStart: string, key: string) =>
   tx
-    .select({ checked: groceryMarks.checked, checkedQty: groceryMarks.checkedQty })
+    .select({ checked: groceryMarks.checked, checkedQty: groceryMarks.checkedQty, inInventory: groceryMarks.inInventory })
     .from(groceryMarks)
     .where(and(eq(groceryMarks.userId, userId), eq(groceryMarks.weekStart, weekStart), eq(groceryMarks.key, key)))
     .for("update");
 
-/** Marks the line's current shortfall as bought and adds it to inventory, in one transaction. Amounts never come from the client. */
-export async function checkGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<boolean> {
-  const list = await getGroceryList(userId, weekStart, { showHidden: true });
-  const need = list.sections.flatMap((s) => s.lines).find((l) => l.kind === "need" && l.key === key);
-  if (!need) return false;
-  await db.transaction(async (tx) => {
-    const [mark] = await markFor(tx, userId, weekStart, key);
-    const already = mark?.checked ? (mark.checkedQty ?? 0) : 0;
-    await upsertMark(tx, userId, weekStart, key, { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase }, at);
-    const parts = parseLineKey(key);
-    if (parts && need.shortfallBase !== null) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, need.shortfallBase, need.system);
-  });
-  return true;
+/** Takes `qty` out of stock; whatever wasn't there is taken back from meals already cooked from it. */
+async function takeBack(tx: DbOrTx, userId: string, itemId: string, unitKey: string, qty: number) {
+  const clipped = await adjustInventory(tx, userId, itemId, unitKey, -qty, null);
+  await shrinkDeductions(tx, userId, itemId, unitKey, clipped);
 }
 
-/** Takes the bought amount back out of inventory and clears the mark. Does nothing to inventory if it wasn't checked. */
+/**
+ * Marks the line's current shortfall as bought and adds it to inventory, in one transaction. Amounts never come
+ * from the client. The user lock makes the shortfall read and the writes one step, so concurrent checks of the
+ * same line (two tabs flushing one queue) add it once.
+ */
+export async function checkGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    await lockUser(tx, userId);
+    const list = await getGroceryList(userId, weekStart, { showHidden: true }, tx);
+    const need = list.sections.flatMap((s) => s.lines).find((l) => l.kind === "need" && l.key === key);
+    if (!need) return false;
+    const [mark] = await markFor(tx, userId, weekStart, key);
+    // A checked amount that never reached inventory (an older week's mark) isn't built on.
+    const already = mark?.checked && mark.inInventory ? (mark.checkedQty ?? 0) : 0;
+    const parts = parseLineKey(key);
+    const counted = need.shortfallBase !== null && parts !== null;
+    await upsertMark(
+      tx,
+      userId,
+      weekStart,
+      key,
+      { checked: true, checkedQty: need.shortfallBase === null ? null : already + need.shortfallBase, inInventory: counted },
+      at,
+    );
+    if (counted) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, need.shortfallBase!, need.system);
+    return true;
+  });
+}
+
+/** Takes the bought amount back out of inventory and clears the mark. Does nothing to inventory if it never went in. */
 export async function uncheckGroceryLine(userId: string, weekStart: string, key: string, at: Date = new Date()): Promise<void> {
   await db.transaction(async (tx) => {
+    await lockUser(tx, userId);
     const [mark] = await markFor(tx, userId, weekStart, key);
     const parts = parseLineKey(key);
-    if (mark?.checked && mark.checkedQty !== null && parts) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, -mark.checkedQty, null);
-    await upsertMark(tx, userId, weekStart, key, { checked: false, checkedQty: null }, at);
+    if (mark?.checked && mark.inInventory && mark.checkedQty !== null && parts) {
+      await takeBack(tx, userId, parts.itemId, parts.unitKey, mark.checkedQty);
+    }
+    await upsertMark(tx, userId, weekStart, key, { checked: false, checkedQty: null, inInventory: false }, at);
   });
 }
 
@@ -134,10 +162,18 @@ export async function setBoughtAmount(userId: string, weekStart: string, key: st
   const amount = amountForKey(text, parts.unitKey);
   if (!amount) return "unreadable";
   return db.transaction(async (tx) => {
+    await lockUser(tx, userId);
     const [mark] = await markFor(tx, userId, weekStart, key);
     if (!mark?.checked || mark.checkedQty === null) return "missing";
-    await upsertMark(tx, userId, weekStart, key, { checkedQty: amount.amount });
-    await adjustInventory(tx, userId, parts.itemId, parts.unitKey, amount.amount - mark.checkedQty, amount.system);
+    await upsertMark(tx, userId, weekStart, key, { checkedQty: amount.amount, inInventory: true });
+    if (mark.inInventory) {
+      const delta = amount.amount - mark.checkedQty;
+      if (delta > 0) await adjustInventory(tx, userId, parts.itemId, parts.unitKey, delta, amount.system);
+      else if (delta < 0) await takeBack(tx, userId, parts.itemId, parts.unitKey, -delta);
+    } else {
+      // The old amount never went in, so the whole new amount is what's bought now.
+      await adjustInventory(tx, userId, parts.itemId, parts.unitKey, amount.amount, amount.system);
+    }
     return "ok";
   });
 }
@@ -171,20 +207,35 @@ export async function addGroceryExtra(userId: string, weekStart: string, text: s
 export async function setGroceryExtraChecked(userId: string, id: string, checked: boolean, at: Date = new Date()): Promise<boolean> {
   if (!UUID.test(id)) return false;
   return db.transaction(async (tx) => {
+    await lockUser(tx, userId);
     const [extra] = await tx
-      .select({ checked: groceryExtras.checked, itemId: groceryExtras.itemId, quantity: groceryExtras.quantity, unit: groceryExtras.unit })
+      .select({
+        checked: groceryExtras.checked,
+        inInventory: groceryExtras.inInventory,
+        itemId: groceryExtras.itemId,
+        quantity: groceryExtras.quantity,
+        unit: groceryExtras.unit,
+      })
       .from(groceryExtras)
       .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)))
       .for("update");
     if (!extra) return false;
-    // Inventory follows real changes only, so a repeated check (e.g. re-sent offline) adds nothing.
+    // Inventory follows real changes only, so a repeated check (e.g. re-sent offline) adds nothing, and
+    // unchecking takes back only what checking added.
+    let inInventory = extra.inInventory;
     if (extra.checked !== checked && extra.itemId !== null && extra.quantity !== null) {
       const base = toBase(extra.quantity, extra.unit);
-      await adjustInventory(tx, userId, extra.itemId, base.unitKey, checked ? base.amount : -base.amount, base.system);
+      if (checked) {
+        await adjustInventory(tx, userId, extra.itemId, base.unitKey, base.amount, base.system);
+        inInventory = true;
+      } else if (extra.inInventory) {
+        await takeBack(tx, userId, extra.itemId, base.unitKey, base.amount);
+        inInventory = false;
+      }
     }
     await tx
       .update(groceryExtras)
-      .set({ checked, updatedAt: at })
+      .set({ checked, inInventory, updatedAt: at })
       .where(and(eq(groceryExtras.id, id), eq(groceryExtras.userId, userId)));
     return true;
   });
@@ -205,7 +256,8 @@ export async function applyGroceryChanges(userId: string, changes: ListChange[])
         .select({ updatedAt: groceryMarks.updatedAt })
         .from(groceryMarks)
         .where(and(eq(groceryMarks.userId, userId), eq(groceryMarks.weekStart, change.week), eq(groceryMarks.key, change.key)));
-      if (mark && mark.updatedAt > at) {
+      // `>=`: the same timestamp means this change was already applied (a re-sent batch).
+      if (mark && mark.updatedAt >= at) {
         done("stale");
         continue;
       }
@@ -222,7 +274,7 @@ export async function applyGroceryChanges(userId: string, changes: ListChange[])
         .from(groceryExtras)
         .where(and(eq(groceryExtras.id, change.id), eq(groceryExtras.userId, userId)));
       if (!row) done("invalid");
-      else if (row.updatedAt > at) done("stale");
+      else if (row.updatedAt >= at) done("stale");
       else {
         await setGroceryExtraChecked(userId, change.id, change.checked, at);
         done("ok");

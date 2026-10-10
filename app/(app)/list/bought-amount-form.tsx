@@ -20,7 +20,9 @@ export function BoughtAmountForm({
   const [state, formAction, pending] = useActionState(action, null);
   return (
     <details className="mt-1">
-      <summary className="cursor-pointer text-xs text-neutral-500">Change amount</summary>
+      <summary className="cursor-pointer text-xs text-neutral-500">
+        Change amount<span className="sr-only"> of {name}</span>
+      </summary>
       <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2" noValidate>
         <div className="min-w-28 flex-1">
           <label htmlFor={`bought-${id}`} className={ui.label}>
@@ -38,6 +40,11 @@ export function BoughtAmountForm({
         <button type="submit" disabled={pending || disabled} className={ui.buttonSecondary}>
           {pending ? "Saving…" : "Save"}
         </button>
+        {state?.saved && (
+          <p role="status" className="w-full text-sm text-emerald-700 dark:text-emerald-400">
+            Saved
+          </p>
+        )}
         {state?.error && (
           <p id={`bought-${id}-error`} role="alert" className={`${ui.error} w-full`}>
             {state.error}

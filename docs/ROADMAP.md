@@ -91,7 +91,11 @@ Known issues and deferred work. Items marked ★ block a later phase.
 - Check-offs need JavaScript. Without it the checkboxes do nothing. They could become form submissions for progressive enhancement.
 - A bought amount can only be changed after checking, and only online (D28). A confirm-before-check editor would need the offline queue to carry a quantity.
 - Checked extras from before phase 4 weren't carried into inventory (D27), and an extra with no recognizable item ("paper towels") never adds stock.
-- Unchecking takes the whole bought amount back out of inventory, floored at 0, even if some of it was used or edited since (spec §5). Nothing warns about this.
+- Unchecking takes the whole bought amount back out of inventory, floored at 0, even if some of it was used or edited since (spec §5). Nothing warns about this. Meals already cooked from that stock have their recorded deductions shrunk by the shortfall, so un-cooking stays exact.
+- The phase 4 backfill stored no display system, so metric purchases carried over from phase 3 show in US units until the item is re-bought or edited. It also used the database's UTC date for "this week" rather than the user's day (`db/migrations/0008_inventory_rls_and_backfill.sql`).
+- "Edit amount" and "Change amount" are prefilled with the rounded display amount, so saving without editing rewrites the stored amount to the rounded value (`app/(app)/inventory/stock-forms.tsx`, `app/(app)/list/bought-amount-form.tsx`). Skip the write when the text is unchanged.
+- Dimmed ("have some") lines use `opacity-50` on grey text, which likely fails WCAG 1.4.3 contrast (`app/(app)/list/grocery-lines.tsx`).
+- Manual edits on `/inventory` don't adjust cooked meals' recorded deductions, so un-cooking after lowering stock by hand can restore more than is left.
 - "1 jar tomatillo salsa" and other prepared foods fall into Other because `lib/sections.ts` has no keywords for them. Grow the keyword map, or let a user set an item's section (phase 5 adds store sections).
 
 **Offline list**

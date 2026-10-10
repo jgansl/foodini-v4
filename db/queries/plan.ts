@@ -5,7 +5,7 @@ import { planEntries, recipeIngredients, recipes } from "@/db/schema";
 import { addDays } from "@/lib/dates";
 import { planDeductions, splitStockKey, stockMap } from "@/lib/inventory";
 import type { PlanEntryInput, PlanEntryUpdate } from "@/lib/plan-input";
-import { adjustInventory, getStock } from "./inventory";
+import { adjustInventory, getStock, lockUser } from "./inventory";
 
 export type PlanEntryView = {
   id: string;
@@ -112,6 +112,7 @@ export async function movePlanEntryToDate(userId: string, id: string, date: stri
 export async function setPlanEntryCooked(userId: string, id: string, cooked: boolean): Promise<boolean> {
   if (!UUID.test(id)) return false;
   return db.transaction(async (tx) => {
+    await lockUser(tx, userId);
     const [entry] = await tx
       .select({ cookedAt: planEntries.cookedAt, deducted: planEntries.deducted, recipeId: planEntries.recipeId, servings: planEntries.servings })
       .from(planEntries)

@@ -31,6 +31,11 @@ export function enqueue(queue: ListChange[], change: ListChange): ListChange[] {
   return [...queue.filter((c) => targetOf(c) !== target), change];
 }
 
+/** Removes the queued change for a target (undoing a tap that hasn't synced yet). */
+export function dropChange(queue: ListChange[], target: string): ListChange[] {
+  return queue.filter((c) => targetOf(c) !== target);
+}
+
 /** Drops the changes that were sent; a newer change queued meanwhile for the same target stays. */
 export function removeSynced(queue: ListChange[], sent: ListChange[]): ListChange[] {
   const sentKeys = new Set(sent.map((c) => `${targetOf(c)}@${c.at}`));

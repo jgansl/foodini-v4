@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { sqlClient } from "@/db";
 import {
   addGroceryExtra,
+  applyGroceryChanges,
   checkGroceryLine,
   getGroceryList,
   removeGroceryExtra,
@@ -138,5 +139,67 @@ describe("inventory", () => {
     expect(await removeStock(other.id, row.itemId, row.unitKey)).toBe(false);
     expect(await listInventory(other.id)).toEqual([]);
     expect(await shelf(owner.id)).toEqual(["2 cups flour"]);
+  });
+
+  it("two concurrent checks of one line add the shortfall once", async () => {
+    const u = await newUser();
+    await planned(u.id, ["4 cups flour"]);
+    const line = await firstLine(u.id);
+    const results = await Promise.all([checkGroceryLine(u.id, WEEK, line.key), checkGroceryLine(u.id, WEEK, line.key)]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect(await shelf(u.id)).toEqual(["4 cups flour"]);
+    await uncheckGroceryLine(u.id, WEEK, line.key);
+    expect(await shelf(u.id)).toEqual([]);
+  });
+
+  it("two meals cooked at once never record more than was on hand", async () => {
+    const u = await newUser();
+    const a = await planned(u.id, ["4 cups flour"]);
+    const b = await planned(u.id, ["4 cups flour"]);
+    await addStockFromText(u.id, "4 cups flour");
+    await Promise.all([setPlanEntryCooked(u.id, a, true), setPlanEntryCooked(u.id, b, true)]);
+    expect(await shelf(u.id)).toEqual([]);
+    await Promise.all([setPlanEntryCooked(u.id, a, false), setPlanEntryCooked(u.id, b, false)]);
+    expect(await shelf(u.id)).toEqual(["4 cups flour"]);
+  });
+
+  it("unchecking a mark or extra that never added stock leaves inventory alone", async () => {
+    const u = await newUser();
+    await addStockFromText(u.id, "3 cups flour");
+    const [flour] = await listInventory(u.id);
+    await sqlClient`insert into grocery_marks (user_id, week_start, key, checked, checked_qty)
+      values (${u.id}, '2026-09-21', ${`item:${flour.itemId}:volume`}, true, 473.176)`;
+    await uncheckGroceryLine(u.id, "2026-09-21", `item:${flour.itemId}:volume`);
+    const [extra] = await sqlClient<{ id: string }[]>`insert into grocery_extras (user_id, week_start, item_id, name, quantity, unit, checked)
+      values (${u.id}, ${WEEK}, ${flour.itemId}, 'flour', 2, 'cup', true) returning id`;
+    await setGroceryExtraChecked(u.id, extra.id, false);
+    expect(await shelf(u.id)).toEqual(["3 cups flour"]);
+  });
+
+  it("unchecking after a partial cook shrinks what un-cooking restores", async () => {
+    const u = await newUser();
+    const a = await planned(u.id, ["2 cups flour"]);
+    await planned(u.id, ["2 cups flour"]);
+    const line = await firstLine(u.id);
+    await checkGroceryLine(u.id, WEEK, line.key);
+    expect(await shelf(u.id)).toEqual(["4 cups flour"]);
+    await setPlanEntryCooked(u.id, a, true);
+    expect(await shelf(u.id)).toEqual(["2 cups flour"]);
+    await uncheckGroceryLine(u.id, WEEK, line.key);
+    expect(await shelf(u.id)).toEqual([]);
+    await setPlanEntryCooked(u.id, a, false);
+    expect(await shelf(u.id)).toEqual([]);
+  });
+
+  it("ignores a re-sent check with the timestamp already applied", async () => {
+    const u = await newUser();
+    await planned(u.id, ["2 cups flour"]);
+    const line = await firstLine(u.id);
+    const at = Date.now();
+    const change = { kind: "line" as const, week: WEEK, key: line.key, checked: true, at };
+    await applyGroceryChanges(u.id, [change]);
+    await removeStock(u.id, (await listInventory(u.id))[0].itemId, "volume");
+    expect((await applyGroceryChanges(u.id, [change]))[0].status).toBe("stale");
+    expect(await shelf(u.id)).toEqual([]);
   });
 });

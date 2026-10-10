@@ -21,7 +21,7 @@ INSERT INTO "inventory" ("user_id", "item_id", "unit_key", "quantity")
 SELECT m."user_id", i."id", substring(m."key" from 43), sum(m."checked_qty")
 FROM "grocery_marks" m
 JOIN "items" i ON i."user_id" = m."user_id" AND i."id"::text = substring(m."key" from 6 for 36)
-WHERE m."checked" AND m."checked_qty" IS NOT NULL AND m."key" LIKE 'item:%'
+WHERE m."checked" AND m."checked_qty" > 0 AND m."key" LIKE 'item:%'
   AND m."week_start" >= date_trunc('week', now())::date
 GROUP BY m."user_id", i."id", substring(m."key" from 43)
 ON CONFLICT ("user_id", "item_id", "unit_key") DO UPDATE SET "quantity" = "inventory"."quantity" + excluded."quantity";

@@ -72,7 +72,7 @@ test.describe("inventory", () => {
     await expect(item(page, "1 ½ cups flour")).toBeVisible();
 
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Remove flour" }).click();
+    await page.getByRole("button", { name: /^Remove .*flour$/ }).click();
     await expect(page.getByText("Nothing on hand yet.")).toBeVisible();
   });
 

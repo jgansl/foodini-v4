@@ -62,7 +62,10 @@ export async function moveToDateAction(entryId: string, formData: FormData): Pro
 export async function setCookedAction(entryId: string, cooked: boolean): Promise<void> {
   const user = await requireUser("/plan");
   await setPlanEntryCooked(user.id, entryId, cooked === true);
+  // Cooking moves inventory, and a cooked meal leaves the grocery list.
   revalidatePath("/plan");
+  revalidatePath("/list");
+  revalidatePath("/inventory");
 }
 
 export async function removePlanEntryAction(entryId: string): Promise<void> {

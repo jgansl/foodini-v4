@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ui } from "@/components/ui";
 import { useOnline } from "@/components/use-online";
 import type { GroceryLine } from "@/lib/grocery";
-import { applyPending, enqueue, removeSynced, type ListChange, type SyncResult } from "@/lib/offline-queue";
+import { applyPending, dropChange, enqueue, removeSynced, targetOf, type ListChange, type SyncResult } from "@/lib/offline-queue";
 import { BoughtAmountForm } from "./bought-amount-form";
 import { hideLineAction, removeExtraAction, setBoughtAmountAction } from "./actions";
 import { loadQueue, loadSnapshot, saveQueue, saveSnapshot, type Snapshot } from "./offline-store";
@@ -120,6 +120,12 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
       ? { kind: "extra", week, id: line.extraId, checked: !line.checked, at }
       : { kind: "line", week, key: line.key, checked: !line.checked, at };
     setMessage(null);
+    // The "still needed" line (#more) shares its key with the bought line above it, so it can only ever
+    // buy more. Tapping it again undoes that queued tap; it must never uncheck the original purchase.
+    if (line.id.endsWith("#more") && line.checked) {
+      await storeQueue(dropChange(queueRef.current, targetOf(change)));
+      return;
+    }
     await storeQueue(enqueue(queueRef.current, change));
     void flush();
   }

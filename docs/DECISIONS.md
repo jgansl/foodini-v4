@@ -156,3 +156,13 @@ Spec §5 lets the quantity be edited "before confirming". Foodini checks off ins
 `plan_entries.deducted` is `{ "<item_id>|<unitKey>": take }`, where take is the lesser of the scaled need and what's on hand (all of it when the difference is float noise). Un-cooking adds exactly that back. Repeating either does nothing.
 **Why:** it makes the round trip exact, even with partial stock (spec §5).
 **Cost:** editing the recipe after cooking doesn't change what un-cooking restores. That's the right behavior, but worth knowing.
+
+### D30. One lock per user serializes inventory changes
+Check-off, uncheck, change amount, cooking, un-cooking and `/inventory` edits each take `pg_advisory_xact_lock(hashtext(user_id))` at the start of their transaction, and read the list inside it.
+**Why:** each reads stock, then writes it. Two tabs flushing one offline queue, or two devices, would otherwise count a purchase or a meal twice (found in review).
+**Cost:** one user's changes run one at a time. That's fine for a single-user app.
+
+### D31. Marks and extras remember whether they went into inventory
+`grocery_marks.in_inventory` and `grocery_extras.in_inventory` are set when checking adds the amount to inventory, and only then does unchecking take it back out. The phase 4 backfill sets it for the marks it carried over; older weeks' marks and earlier extras stay false.
+**Why:** unchecking last week's mark or a pre-phase-4 extra must not remove stock it never added (found in review).
+**Cost:** two columns. Changing the amount on an old checked line counts the whole new amount as bought now.

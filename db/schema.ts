@@ -71,7 +71,7 @@ export const planEntries = pgTable(
     servings: numeric("servings", { mode: "number" }).notNull(),
     label: text("label"),
     cookedAt: timestamp("cooked_at", { withTimezone: true }),
-    /** Phase 4: item id → amount taken from inventory when cooked. */
+    /** Phase 4: `<item_id>|<unitKey>` → amount taken from inventory when cooked (D29). */
     deducted: jsonb("deducted").$type<Record<string, number>>(),
   },
   (t) => [
@@ -93,6 +93,8 @@ export const groceryMarks = pgTable(
     /** Amount bought, in base units (ml, g or count). Null for lines without an amount. */
     checkedQty: numeric("checked_qty", { mode: "number" }),
     hidden: boolean("hidden").notNull().default(false),
+    /** True while `checked_qty` is counted in inventory; only then does unchecking take it back out (D27). */
+    inInventory: boolean("in_inventory").notNull().default(false),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.weekStart, t.key] })],
@@ -109,6 +111,8 @@ export const groceryExtras = pgTable(
     quantity: numeric("quantity", { mode: "number" }),
     unit: text("unit"),
     checked: boolean("checked").notNull().default(false),
+    /** True while this extra's amount is counted in inventory; only then does unchecking take it back out. */
+    inInventory: boolean("in_inventory").notNull().default(false),
     /** When `checked` last changed; offline sync compares against it (last write wins). */
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

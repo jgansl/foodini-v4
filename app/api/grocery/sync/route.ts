@@ -17,5 +17,6 @@ export async function POST(request: Request) {
   if (!parsed.ok) return Response.json({ error: "invalid" }, { status: 400 });
   const results = await applyGroceryChanges(user.id, parsed.changes);
   revalidatePath("/list");
+  revalidatePath("/inventory");
   return Response.json({ results });
 }
