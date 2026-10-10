@@ -18,7 +18,7 @@ File all deferred work as a GitHub issue in this repo (`gh issue create`). That 
 - Labels: always `deferred`. Add `bug`, `enhancement`, `accessibility` or `documentation` as fits, and `blocks-later-phase` for anything a later phase depends on (what used to be ★).
 - When you finish one, reference it in the commit or PR (`Fixes #123`) and note the fix in `docs/CHANGELOG.md`.
 - Record a significant design choice made while deferring in `docs/DECISIONS.md`.
-- `docs/ROADMAP.md` keeps the phase table and phase notes. Its **Backlog** section is the older list: don't add to it, and move its entries to issues when you touch them.
+- `docs/ROADMAP.md` keeps the phase table and phase notes. Its **Backlog** section only points at the `deferred` issues; don't list work there.
 
 # Legal and licensing
 

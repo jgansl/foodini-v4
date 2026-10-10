@@ -168,6 +168,6 @@ Check-off, uncheck, change amount, cooking, un-cooking and `/inventory` edits ea
 **Cost:** two columns. Changing the amount on an old checked line counts the whole new amount as bought now.
 
 ### D32. Deferred work lives in GitHub issues
-New deferred work is filed as issues labelled `deferred` instead of lines in ROADMAP.md. The old Backlog stays until its entries are moved.
+New deferred work is filed as issues labelled `deferred` instead of lines in ROADMAP.md. The old ROADMAP Backlog was moved into issues on 2026-10-10.
 **Why:** issues can be assigned, linked from PRs, closed automatically, and picked up by an agent; a markdown list can't.
-**Cost:** the backlog is split between two places until it is migrated.
+**Cost:** a short-lived item now needs an issue instead of a line.

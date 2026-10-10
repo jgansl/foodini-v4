@@ -123,7 +123,7 @@ In review as [jgansl/foodini-v4#1](https://github.com/jgansl/foodini-v4/pull/1).
 - Sign-in redirects (`?next=`) are limited to same-site paths, including paths with control characters that browsers strip.
 
 ### Known issues
-See [ROADMAP.md](ROADMAP.md#backlog) for the deferred list. The most noticeable:
+See the [`deferred` issues](https://github.com/jgansl/foodini-v4/issues?q=label%3Adeferred) for the deferred list. The most noticeable:
 - Allrecipes and Serious Eats block the importer (HTTP 403).
 - Scaled counts don't re-pluralize ("1 potatoes") and can show fractions ("5 ¼ eggs").
 - Importing overwrites fields you've already typed.
