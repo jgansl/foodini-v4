@@ -59,7 +59,7 @@ Keep every saved version of a recipe, and let a recipe branch into variations: "
 - **Depends on:** phase 1. It needs a short design pass (brainstorm and spec section) before planning.
 
 ## Backlog
-Known issues and deferred work. Items marked ★ block a later phase.
+Older list of known issues and deferred work. New deferred work is filed as GitHub issues labelled `deferred` (see AGENTS.md); move entries below to issues when you touch them. Items marked ★ block a later phase.
 
 **Parser and display**
 - Scaled counts don't re-pluralize ("1 potatoes", "2 egg (large)") and can show fractions ("5 ¼ eggs").

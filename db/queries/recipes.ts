@@ -70,10 +70,11 @@ export async function insertIngredients(tx: DbOrTx, userId: string, recipeId: st
   );
 }
 
-export async function listRecipes(userId: string, filter: { q?: string; tag?: string } = {}): Promise<RecipeSummary[]> {
+export async function listRecipes(userId: string, filter: { q?: string; tags?: string[] } = {}): Promise<RecipeSummary[]> {
   const conditions = [eq(recipes.userId, userId)];
   if (filter.q) conditions.push(ilike(recipes.title, `%${escapeLike(filter.q)}%`));
-  if (filter.tag) conditions.push(arrayContains(recipes.tags, [filter.tag]));
+  // All selected tags must be on the recipe, so each one narrows the list.
+  if (filter.tags?.length) conditions.push(arrayContains(recipes.tags, filter.tags));
   return db
     .select(summaryColumns)
     .from(recipes)

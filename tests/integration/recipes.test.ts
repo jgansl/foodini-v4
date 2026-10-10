@@ -80,7 +80,10 @@ describe("recipe queries", () => {
     const u = await newUser();
     await createRecipe(u.id, { ...base, title: "Soup", tags: ["dinner", "soup"] });
     await createRecipe(u.id, { ...base, title: "Toast", tags: ["breakfast"] });
-    expect((await listRecipes(u.id, { tag: "soup" })).map((r) => r.title)).toEqual(["Soup"]);
+    expect((await listRecipes(u.id, { tags: ["soup"] })).map((r) => r.title)).toEqual(["Soup"]);
+    // Several tags narrow the list: a recipe needs all of them.
+    expect((await listRecipes(u.id, { tags: ["dinner", "soup"] })).map((r) => r.title)).toEqual(["Soup"]);
+    expect(await listRecipes(u.id, { tags: ["soup", "breakfast"] })).toEqual([]);
     expect((await listRecipes(u.id)).map((r) => r.title)).toEqual(["Toast", "Soup"]);
     expect(await listTags(u.id)).toEqual(["breakfast", "dinner", "soup"]);
   });

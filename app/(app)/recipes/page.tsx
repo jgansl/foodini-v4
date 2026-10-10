@@ -1,23 +1,20 @@
 import Link from "next/link";
 import { ui } from "@/components/ui";
 import { listRecipes, listTags } from "@/db/queries/recipes";
+import { TagFilter } from "./tag-filter";
 import { requireUser } from "@/server/auth";
 import { photoUrls } from "@/server/photos";
-
-const hrefWith = (params: { q?: string; tag?: string }) => {
-  const search = new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString();
-  return search ? `/recipes?${search}` : "/recipes";
-};
 
 export default async function RecipesPage(props: PageProps<"/recipes">) {
   const user = await requireUser("/recipes");
   const params = await props.searchParams;
   const q = typeof params.q === "string" ? params.q.trim() : "";
-  const tag = typeof params.tag === "string" ? params.tag : "";
+  // `?tag=a&tag=b`: one value arrives as a string, several as an array.
+  const picked = [params.tag ?? []].flat().filter((t): t is string => typeof t === "string" && t !== "");
 
-  const [recipes, tags] = await Promise.all([listRecipes(user.id, { q, tag }), listTags(user.id)]);
+  const [recipes, tags] = await Promise.all([listRecipes(user.id, { q, tags: picked }), listTags(user.id)]);
   const photos = await photoUrls(recipes.flatMap((r) => (r.imagePath ? [r.imagePath] : [])));
-  const filtering = Boolean(q || tag);
+  const filtering = Boolean(q || picked.length > 0);
 
   return (
     <main className={ui.page}>
@@ -28,29 +25,16 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
         </Link>
       </div>
 
-      <form role="search" action="/recipes" className="mb-3 flex gap-2">
+      <form role="search" action="/recipes" className="mb-5 flex gap-2">
         <label htmlFor="q" className="sr-only">
           Search recipes
         </label>
-        <input id="q" name="q" type="search" defaultValue={q} placeholder="Search by title" className={`${ui.input} mt-0`} />
-        {tag && <input type="hidden" name="tag" value={tag} />}
+        <input id="q" name="q" type="search" defaultValue={q} placeholder="Search by title" className={`${ui.input} mt-0 min-w-0`} />
+        {tags.length > 0 && <TagFilter key={picked.join("\n")} tags={tags} selected={picked} />}
         <button type="submit" className={ui.buttonSecondary}>
           Search
         </button>
       </form>
-
-      {tags.length > 0 && (
-        <nav aria-label="Filter by tag" className="mb-5 flex flex-wrap gap-2">
-          <Link href={hrefWith({ q })} className={tag ? ui.chip : ui.chipActive} aria-current={tag ? undefined : "page"}>
-            All
-          </Link>
-          {tags.map((t) => (
-            <Link key={t} href={hrefWith({ q, tag: t })} className={t === tag ? ui.chipActive : ui.chip} aria-current={t === tag ? "page" : undefined}>
-              {t}
-            </Link>
-          ))}
-        </nav>
-      )}
 
       {recipes.length === 0 ? (
         <div className={`${ui.card} text-center`}>
@@ -72,11 +56,11 @@ export default async function RecipesPage(props: PageProps<"/recipes">) {
           )}
         </div>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {recipes.map((r) => {
             const photo = r.imagePath ? photos.get(r.imagePath) : undefined;
             return (
-              <li key={r.id}>
+              <li key={r.id} className="min-w-0">
                 <Link href={`/recipes/${r.id}`} className={`${ui.card} flex gap-3 hover:border-emerald-600`}>
                   {photo ? (
                     // Signed Supabase URLs; next/image would need per-environment remotePatterns.

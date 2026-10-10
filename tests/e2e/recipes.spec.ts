@@ -72,7 +72,9 @@ test.describe("signed in", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Fluffy pancakes" })).toBeVisible();
 
     await page.getByRole("link", { name: "← Recipes" }).click();
-    await page.getByRole("link", { name: "breakfast", exact: true }).click();
+    await page.getByText("Tags", { exact: true }).click();
+    await page.getByRole("checkbox", { name: "breakfast" }).check();
+    await expect(page).toHaveURL(/tag=breakfast$/);
     await expect(page.getByRole("link", { name: /Fluffy pancakes/ })).toBeVisible();
 
     await page.getByRole("link", { name: /Fluffy pancakes/ }).click();

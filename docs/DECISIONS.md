@@ -166,3 +166,8 @@ Check-off, uncheck, change amount, cooking, un-cooking and `/inventory` edits ea
 `grocery_marks.in_inventory` and `grocery_extras.in_inventory` are set when checking adds the amount to inventory, and only then does unchecking take it back out. The phase 4 backfill sets it for the marks it carried over; older weeks' marks and earlier extras stay false.
 **Why:** unchecking last week's mark or a pre-phase-4 extra must not remove stock it never added (found in review).
 **Cost:** two columns. Changing the amount on an old checked line counts the whole new amount as bought now.
+
+### D32. Deferred work lives in GitHub issues
+New deferred work is filed as issues labelled `deferred` instead of lines in ROADMAP.md. The old Backlog stays until its entries are moved.
+**Why:** issues can be assigned, linked from PRs, closed automatically, and picked up by an agent; a markdown list can't.
+**Cost:** the backlog is split between two places until it is migrated.

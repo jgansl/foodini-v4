@@ -4,6 +4,14 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+### Recipe archive
+
+#### Changed
+- The tag filter is a dropdown of checkboxes. Picking several tags shows recipes that have all of them.
+
+#### Fixed
+- Recipe tiles overflowed the page on narrow screens when a title or tag was long.
+
 ### Phase 4, inventory
 
 #### Added
