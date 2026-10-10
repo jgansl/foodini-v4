@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Phase 4 adds Inventory here.
+// Phase 5 adds Stores here.
 const TABS = [
   { href: "/recipes", label: "Recipes" },
   { href: "/plan", label: "Plan" },
   { href: "/list", label: "List" },
+  { href: "/inventory", label: "Inventory" },
 ];
 
 export function AppNav() {

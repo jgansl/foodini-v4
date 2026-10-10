@@ -6,7 +6,8 @@ import { ui } from "@/components/ui";
 import { useOnline } from "@/components/use-online";
 import type { GroceryLine } from "@/lib/grocery";
 import { applyPending, enqueue, removeSynced, type ListChange, type SyncResult } from "@/lib/offline-queue";
-import { hideLineAction, removeExtraAction } from "./actions";
+import { BoughtAmountForm } from "./bought-amount-form";
+import { hideLineAction, removeExtraAction, setBoughtAmountAction } from "./actions";
 import { loadQueue, loadSnapshot, saveQueue, saveSnapshot, type Snapshot } from "./offline-store";
 
 type Section = Snapshot["sections"][number];
@@ -152,7 +153,7 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
           </h2>
           <ul className={`${ui.card} divide-y divide-neutral-100 p-0 dark:divide-neutral-800`}>
             {lines.map((line) => (
-              <li key={line.id} className={`flex items-center gap-3 px-4 py-3 ${line.hidden ? "opacity-50" : ""}`}>
+              <li key={line.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${line.hidden || line.dimmed ? "opacity-50" : ""}`}>
                 <input
                   id={`line-${line.id}`}
                   type="checkbox"
@@ -163,6 +164,7 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
                 <label htmlFor={`line-${line.id}`} className="min-w-0 flex-1">
                   <span className={line.checked ? "text-neutral-500 line-through" : ""}>{line.label}</span>
                   {line.recipes.length > 0 && <span className="block truncate text-xs text-neutral-500">for {line.recipes.join(", ")}</span>}
+                  {line.hint && <span className="block text-xs text-emerald-700 dark:text-emerald-400">{line.hint}</span>}
                 </label>
                 {line.extraId ? (
                   <form action={removeExtraAction.bind(null, line.extraId)}>
@@ -181,6 +183,17 @@ export function GroceryLines({ userId, week, sections, generatedAt }: { userId: 
                       {line.hidden ? "Unhide" : "Hide"}
                     </button>
                   </form>
+                )}
+                {line.kind === "bought" && line.key.startsWith("item:") && line.label !== line.name && (
+                  <div className="w-full basis-full pl-8">
+                    <BoughtAmountForm
+                      id={line.id.replace(/[^a-z0-9]/gi, "-")}
+                      name={line.name}
+                      current={line.label.slice(0, line.label.length - line.name.length).trim()}
+                      disabled={!online}
+                      action={setBoughtAmountAction.bind(null, week, line.key)}
+                    />
+                  </div>
                 )}
               </li>
             ))}
