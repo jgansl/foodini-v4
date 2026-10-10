@@ -28,6 +28,22 @@ describe("reparseIngredients", () => {
     expect((await sqlClient`select 1 from items where id = ${junk.id}`).length).toBe(0);
   });
 
+  it("keeps items that inventory or a cooked meal still refers to", async () => {
+    const u = await createTestUser();
+    users.push(u);
+    const [kept] = await sqlClient<{ id: string }[]>`
+      insert into items (user_id, name, key, section, unit_kind) values (${u.id}, 'saffron', 'saffron', 'spices', 'weight') returning id`;
+    await sqlClient`insert into inventory (user_id, item_id, unit_key, quantity) values (${u.id}, ${kept.id}, 'weight', 1)`;
+    const [deducted] = await sqlClient<{ id: string }[]>`
+      insert into items (user_id, name, key, section, unit_kind) values (${u.id}, 'sumac', 'sumac', 'spices', 'weight') returning id`;
+    const recipeId = await createRecipe(u.id, { title: "Stew", servings: 2, ingredients: ["1 onion"], steps: [], tags: [], sourceUrl: null, notes: null });
+    await sqlClient`
+      insert into plan_entries (user_id, date, position, recipe_id, servings, cooked_at, deducted)
+      values (${u.id}, '2026-10-12', 0, ${recipeId}, 2, now(), ${JSON.stringify({ [`${deducted.id}|weight`]: 3 })}::jsonb)`;
+    expect((await reparseIngredients(u.id)).itemsRemoved).toBe(0);
+    expect((await sqlClient`select 1 from items where id in (${kept.id}, ${deducted.id})`).length).toBe(2);
+  });
+
   it("only touches the given user's data", async () => {
     const [a, b] = await Promise.all([createTestUser(), createTestUser()]);
     users.push(a, b);

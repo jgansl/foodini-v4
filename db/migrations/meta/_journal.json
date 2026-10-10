@@ -50,6 +50,20 @@
       "when": 1790547884202,
       "tag": "0006_grocery_extras_updated_at",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791673165314,
+      "tag": "0007_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791673166066,
+      "tag": "0008_inventory_rls_and_backfill",
+      "breakpoints": true
     }
   ]
 }

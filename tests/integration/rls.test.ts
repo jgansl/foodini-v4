@@ -78,6 +78,13 @@ describe("row-level security", () => {
     expect(error).not.toBeNull();
   });
 
+  it("hides inventory from other users and refuses another user's item", async () => {
+    const { data: item } = await aliceDb.from("items").select("id").limit(1).single();
+    expect((await aliceDb.from("inventory").insert({ user_id: alice.id, item_id: item!.id, unit_key: "count:each", quantity: 3 })).error).toBeNull();
+    expect((await bobDb.from("inventory").select("item_id")).data).toEqual([]);
+    expect((await bobDb.from("inventory").insert({ user_id: bob.id, item_id: item!.id, unit_key: "count:each", quantity: 1 })).error).not.toBeNull();
+  });
+
   it("gives the anonymous role nothing", async () => {
     const { data } = await anonClient().from("recipes").select("id");
     expect(data ?? []).toEqual([]);

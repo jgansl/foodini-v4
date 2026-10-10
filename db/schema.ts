@@ -115,3 +115,21 @@ export const groceryExtras = pgTable(
   },
   (t) => [index("grocery_extras_user_week_idx").on(t.userId, t.weekStart)],
 );
+
+export const inventory = pgTable(
+  "inventory",
+  {
+    userId: uuid("user_id").notNull(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => items.id, { onDelete: "cascade" }),
+    /** Same unit key as grocery lines (D17): volume, weight or count:<unit|each>. */
+    unitKey: text("unit_key").notNull(),
+    /** In base units: ml, g or a count. Rows reaching 0 are deleted. */
+    quantity: numeric("quantity", { mode: "number" }).notNull(),
+    /** "us" | "metric" | null: how to display the amount. */
+    system: text("system"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.itemId, t.unitKey] }), check("inventory_quantity_nonnegative", sql`${t.quantity} >= 0`)],
+);
