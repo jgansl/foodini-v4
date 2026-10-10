@@ -4,6 +4,19 @@ All notable changes to Foodini. The format follows [Keep a Changelog](https://ke
 
 ## [Unreleased]
 
+### Phase 4, inventory
+
+#### Added
+- **Inventory** (`/inventory`, Inventory tab): add stock as "2 lb flour", edit an amount, remove it.
+- The grocery list buys only what stock doesn't cover. Stock in another unit kind shows as "you have 2 cups", and amount-less lines you have stock for show "have some".
+- Checking a line off adds it to inventory, and unchecking takes it back. Checked extras with an amount do the same. Offline check-offs sync the same way, and repeating one changes nothing.
+- Marking a meal cooked takes its ingredients out of inventory (never more than is on hand), and marking it not cooked puts back exactly what was taken.
+- "Change amount" on a checked line, for when you bought more or less than the list suggested.
+
+#### Changed
+- The shortfall on the list comes from inventory instead of from the checked amount (D27). A migration moved checked marks from the current and future weeks into inventory.
+- `pnpm db:reparse` no longer deletes items that inventory or a cooked meal still refers to.
+
 ### Recipe page
 
 #### Changed

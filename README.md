@@ -1,6 +1,6 @@
 # Foodini
 
-Recipes, weekly meal plans and grocery lists. See `docs/superpowers/specs/` for the design.
+Recipes, weekly meal plans, grocery lists and an inventory of what you have on hand. See `docs/superpowers/specs/` for the design.
 
 ## Local development
 

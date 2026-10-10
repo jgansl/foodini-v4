@@ -8,8 +8,8 @@ Foodini is built in five phases. Each is a usable release, and each gets its own
 | 2 | Meal plan | Monday–Sunday plan with any number of entries per day, labels, per-entry servings, mark cooked | In review ([jgansl/foodini-v4#2](https://github.com/jgansl/foodini-v4/pull/2)) |
 | 3a | Grocery list | List generated from the plan (scaled, merged, readable units, grouped by section), instant check-offs, hide for the week, extras | In review |
 | 3b | Offline list | Saved list and queued check-offs in IndexedDB, then a service worker so `/list` opens with no signal (spec §7) | In review |
-| 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | Next |
-| 5 | Stores and prices | Price log, cost estimates, the list split by store in each store's section order | Planned |
+| 4 | Inventory | On-hand amounts subtracted from the list; checking off adds to inventory; marking a meal cooked deducts from it | In review |
+| 5 | Stores and prices | Price log, cost estimates, the list split by store in each store's section order | Next |
 
 ## Phase notes
 - **Phase 2** creates `plan_entries`. Deleting a recipe that is still planned must then be blocked (spec §3), and the recipe page gains "Add to plan".
@@ -82,13 +82,16 @@ Known issues and deferred work. Items marked ★ block a later phase.
   - a recipe edited while the script runs can be overwritten;
   - the final unused-item delete can race a concurrent save.
 
-  ★ Before phase 4, extend its "unused item" check to inventory, price records and `plan_entries.deducted`, or retire the script (`db/queries/maintenance.ts`).
+  ★ Before phase 5, add price records to its "unused item" check (inventory and `plan_entries.deducted` are covered), or retire the script (`db/queries/maintenance.ts`).
+  - Re-parsing can give a recipe line a new item key, leaving stock under the old item. The stock keeps its row, so the item is still listed in Inventory, but the list no longer subtracts it from that recipe line.
 - "Unhide" and "Hide" accept any well-formed key and upsert an inert mark for the caller's own account. It's harmless, but could reuse `checkGroceryLine`'s on-list check.
 - The Hide and Remove controls are about 20 px tall, below the 24 px minimum target size (WCAG 2.5.8). After the plan grows, two identical "Hide flour" buttons appear.
 - If an amount-less line ("salt to taste") is checked and a recipe with "1 tsp salt" is planned later, the mark covers the new amount with no need line. That's arguably right, but it should get a unit test so the behavior is intentional.
 
 - Check-offs need JavaScript. Without it the checkboxes do nothing. They could become form submissions for progressive enhancement.
-- Checking an item off records the whole shortfall, so you can't type the amount you actually bought (spec §5: "the quantity can be edited before confirming"). Add a quantity editor, which matters once inventory exists (phase 4).
+- A bought amount can only be changed after checking, and only online (D28). A confirm-before-check editor would need the offline queue to carry a quantity.
+- Checked extras from before phase 4 weren't carried into inventory (D27), and an extra with no recognizable item ("paper towels") never adds stock.
+- Unchecking takes the whole bought amount back out of inventory, floored at 0, even if some of it was used or edited since (spec §5). Nothing warns about this.
 - "1 jar tomatillo salsa" and other prepared foods fall into Other because `lib/sections.ts` has no keywords for them. Grow the keyword map, or let a user set an item's section (phase 5 adds store sections).
 
 **Offline list**

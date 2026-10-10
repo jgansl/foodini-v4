@@ -112,7 +112,7 @@ A merged line is shown in metric if any contributing ingredient used a metric un
 ### D21. Re-parsing stored recipes is a maintenance script
 `pnpm db:reparse` re-parses every stored ingredient line with the current parser and deletes items nothing uses. It runs through `tsx` with the `react-server` condition, so the `server-only` modules load.
 **Why:** parser fixes otherwise only apply to recipes saved afterwards.
-**Cost:** run it deliberately after parser changes. It rewrites `recipe_ingredients` rows, keeping their raw text and order. It orphans this week's grocery marks for items whose key changed. Its unused-item delete must learn about inventory and prices before phase 4.
+**Cost:** run it deliberately after parser changes. It rewrites `recipe_ingredients` rows, keeping their raw text and order. It orphans this week's grocery marks for items whose key changed. Its unused-item delete learned about inventory and cooked meals in phase 4, and must learn about prices before phase 5.
 
 ### D22. Our own offline queue, not Next's `experimental.useOffline`
 Check-offs go to an IndexedDB queue and a JSON sync endpoint (`POST /api/grocery/sync`), and a service worker serves `/list` when offline.
@@ -135,3 +135,24 @@ GitHub Actions runs `pnpm lint`, `pnpm test` and `pnpm build` on every push and 
 **Why:** fast, dependable feedback on every PR without secrets or a database in CI.
 **Cost:** database regressions are caught only by running the local suites; adding `supabase start` to CI is in the backlog.
 
+## 2026-10-10
+
+### D26. Inventory is keyed like grocery lines
+One row per `(user, item, unit key)`, with quantities in base units (ml, g or a count) and a display `system`. Rows reaching 0, within float noise (1e-6), are deleted.
+**Why:** the list subtracts stock line by line, and D17 already separates cans from loose tomatoes. Using the same key keeps the two consistent and makes the subtraction exact.
+**Cost:** stock entered in cups doesn't cover a recipe in grams. The list shows a hint instead.
+
+### D27. Shortfall comes from inventory, and phase 3's checked marks were moved into it
+`shortfall = required − on hand`, replacing D18's `required − checked_qty`. A migration added checked item marks of the current and future weeks to inventory.
+**Why:** checking off now adds to inventory (spec §5), so subtracting the mark as well would count purchases twice.
+**Cost:** purchases from earlier weeks, and checked extras, aren't carried over.
+
+### D28. Changing a bought amount happens after checking
+Spec §5 lets the quantity be edited "before confirming". Foodini checks off instantly (and offline), and offers "Change amount" on a checked line instead, which moves inventory by the difference. It's online only.
+**Why:** it keeps one-tap check-offs and offline sync simple.
+**Cost:** two steps when the amount differs from what the list suggested.
+
+### D29. Cooking records what it took, per stock key
+`plan_entries.deducted` is `{ "<item_id>|<unitKey>": take }`, where take is the lesser of the scaled need and what's on hand (all of it when the difference is float noise). Un-cooking adds exactly that back. Repeating either does nothing.
+**Why:** it makes the round trip exact, even with partial stock (spec §5).
+**Cost:** editing the recipe after cooking doesn't change what un-cooking restores. That's the right behavior, but worth knowing.
